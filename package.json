@@ -36,7 +36,8 @@
     "keyboard-layout": "^1.0.0",
     "mkdirp": "^0.5.1",
     "pify": "^2.3.0",
-    "rx": "^4.1.0"
+    "rx": "^4.1.0",
+    "spawn-rx": "^0.2.0"
   },
   "devDependencies": {
     "babel-cli": "^6.9.0",
