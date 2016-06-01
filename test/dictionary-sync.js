@@ -33,9 +33,14 @@ describe('The Dictionary Sync class', function() {
     this.timeout(60*1000);
 
     it('should preload some dictionaries', async function() {
+      if (process.platform === 'linux') return;
+      
+      let installedLangs = getInstalledKeyboardLanguages();
+      if (!installedLangs || installedLangs.length < 1) return;
+      
       let langFiles = await this.fixture.preloadDictionaries();
 
-      expect(langFiles.length).to.equal(getInstalledKeyboardLanguages().length);
+      expect(langFiles.length).to.equal(installedLangs.length);
       for (let lang of langFiles) {
         expect(fs.existsSync(lang)).to.be.ok;
       }
