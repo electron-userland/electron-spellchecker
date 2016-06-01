@@ -17,10 +17,12 @@ describe('The Dictionary Sync class', function() {
   });
 
   describe('loadDictionaryForLanguage method', function() {
+    this.timeout(60*1000);
+
     it('should download the German dictionary', async function() {
       let buf = await this.fixture.loadDictionaryForLanguage('de-DE');
 
-      expect(buf.constructor.name).toEqual('Buffer');
+      expect(buf.constructor.name).to.equal('Buffer');
       expect(buf.length > 1000).to.be.ok;
     });
   });
