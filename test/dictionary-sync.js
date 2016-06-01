@@ -1,6 +1,8 @@
 import './support';
+import fs from 'fs';
 import path from 'path';
 import rimraf from 'rimraf';
+import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 
 import DictionarySync from '../src/dictionary-sync';
 
@@ -24,6 +26,19 @@ describe('The Dictionary Sync class', function() {
 
       expect(buf.constructor.name).to.equal('Buffer');
       expect(buf.length > 1000).to.be.ok;
+    });
+  });
+
+  describe('preloadDictionaries', function() {
+    this.timeout(60*1000);
+
+    it('should preload some dictionaries', async function() {
+      let langFiles = await this.fixture.preloadDictionaries();
+
+      expect(langFiles.length).to.equal(getInstalledKeyboardLanguages().length);
+      for (let lang of langFiles) {
+        expect(fs.existsSync(lang)).to.be.ok;
+      }
     });
   });
 });

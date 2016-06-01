@@ -59,6 +59,8 @@ export default class DictionarySync {
 
   preloadDictionaries() {
     return Observable.from(getInstalledKeyboardLanguages())
-      .flatMap((x) => Observable.fromPromise(this.loadDictionaryForLanguage(x, true)));
+      .flatMap((x) => Observable.fromPromise(this.loadDictionaryForLanguage(x, true)))
+      .reduce((acc,x) => { acc.push(x); return acc; }, [])
+      .toPromise();
   }
 }
