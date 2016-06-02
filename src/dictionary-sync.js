@@ -57,8 +57,8 @@ export default class DictionarySync {
     return await fs.readFileSync(target);
   }
 
-  preloadDictionaries() {
-    return Observable.from(getInstalledKeyboardLanguages())
+  preloadDictionaries(languageList=null) {
+    return Observable.from(languageList || getInstalledKeyboardLanguages())
       .flatMap((x) => Observable.fromPromise(this.loadDictionaryForLanguage(x, true)))
       .reduce((acc,x) => { acc.push(x); return acc; }, [])
       .toPromise();
