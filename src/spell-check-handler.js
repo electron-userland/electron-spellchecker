@@ -9,6 +9,7 @@ import {normalizeLanguageCode} from './utility';
 
 const d = require('debug')('electron-spellchecker:spell-check-handler');
 let cld = null;
+let fallbackLocaleTable = null;
 
 const validLangCode = /[a-z]{2}[_][A-Z]{2}/;
 
@@ -103,6 +104,18 @@ export default class SpellCheckHandler {
     
     if (process.platform === 'win32') {
       localeList = getInstalledKeyboardLanguages();
+    }
+
+    if (process.platform === 'darwin') {
+      fallbackLocaleTable = fallbackLocaleTable || require('./fallback-locales');
+
+      // NB: OS X will return lists that are half just a language, half
+      // language + locale, like ['en', 'pt_BR', 'ko']
+      localeList = this.spellchecker.getAvailableDictionaries()
+        .map((x => {
+          if (x.length === 2) return fallbackLocaleTable[x];
+          return normalizeLanguageCode(x);
+        }))
     }
       
     d(`Filtered Locale list: ${JSON.stringify(localeList)}`);
