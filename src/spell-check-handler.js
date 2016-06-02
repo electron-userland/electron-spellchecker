@@ -107,7 +107,7 @@ export default class SpellCheckHandler {
       
     d(`Filtered Locale list: ${JSON.stringify(localeList)}`);
     
-    // Some operating systems like Ubuntu make locale -a useless by dumping
+    // Some distros like Ubuntu make locale -a useless by dumping
     // every possible locale for the language into the list :-/
     let counts = localeList.reduce((acc,x) => {
       let k = x.substring(0,2);
@@ -129,7 +129,7 @@ export default class SpellCheckHandler {
     }, {});
     
     // NB: LANG has a Special Place In Our Hearts
-    if (process.env.LANG) {
+    if (process.platform === 'linux' && process.env.LANG) {
       let m = process.env.LANG.match(validLangCode);
       if (!m) return ret;
       
