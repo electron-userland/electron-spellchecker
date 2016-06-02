@@ -121,7 +121,7 @@ export default class SpellCheckHandler {
         .map((x => {
           if (x.length === 2) return fallbackLocaleTable[x];
           return normalizeLanguageCode(x);
-        }))
+        }));
     }
       
     d(`Filtered Locale list: ${JSON.stringify(localeList)}`);
