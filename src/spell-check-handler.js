@@ -1,4 +1,4 @@
-import {Disposable, Observable, Scheduler, SerialDisposable, Subject} from 'rx';
+import {AsyncSubject, Disposable, Observable, Scheduler, SerialDisposable, Subject} from 'rx';
 import {Spellchecker} from '@paulcbetts/spellchecker';
 import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 import pify from 'pify';
@@ -29,85 +29,107 @@ function fromEventCapture(element, name) {
 }
 
 export default class SpellCheckHandler {
-  constructor(dictionarySync=null) {
+  constructor(dictionarySync=null, localStorage=null) {
     this.dictionarySync = dictionarySync || new DictionarySync();
     this.switchToLanguage = new Subject();
     this.currentSpellchecker = null;
     this.currentSpellcheckerLanguage = null;
-    
+    this.localStorage = localStorage || window.localStorage;
     this.disp = new SerialDisposable();
-    
+
     if (process.platform === 'darwin') {
       // NB: OS X does automatic language detection, we're gonna trust it
       this.currentSpellchecker = new Spellchecker();
       return;
     }
-    
+
     this.switchToLanguage
-      .flatMap((lang) => 
-        this.dictionarySync.loadDictionaryForLanguage(lang)
-          .map((dict) => ({ language: lang, dictionary: dict }))
+      .flatMap(({lang, completion}) =>
+        Observable.fromPromise(this.loadDictionaryForLanguageWithAlternatives(lang))
+          .map((dict) => ({ language: lang, dictionary: dict, completion }))
           .catch((e) => {
             d(`Failed to load dictionary ${lang}: ${e.message}`);
+            completion.onError(e);
             return Observable.just(null);
           }))
-      .where((x) => x !== null)
+      .where((x) => x)
       .observeOn(Scheduler.default)
-      .subscribe((ld) => {
+      .subscribe(({language, dictionary, completion}) => {
+        d(dictionary);
         this.currentSpellchecker = new Spellchecker();
-        this.currentSpellchecker.setLanguage(ld.language, ld.dictionary);
+        this.currentSpellchecker.setDictionary(language, dictionary);
+
+        completion.onNext(true);
+        completion.onCompleted(true);
       });
   }
-  
+
+  async loadDictionaryForLanguageWithAlternatives(langCode, cacheOnly=false) {
+    this.fallbackLocaleTable = this.fallbackLocaleTable || require('./fallback-locales');
+    let lang = langCode.substring(0, 2);
+
+    let alternatives = [langCode, await this.getLikelyLocaleForLanguage(lang), this.fallbackLocaleTable[lang]];
+
+    d(`Requesting to load ${langCode}, alternatives are ${JSON.stringify(alternatives)}`);
+    return await Observable.just(alternatives)
+      .concatMap((l) => {
+        return Observable.defer(() => Observable.fromPromise(this.dictionarySync.loadDictionaryForLanguage(l, cacheOnly)))
+          .catch(() => Observable.just(null));
+      })
+      .filter((x) => x !== null)
+      .take(1)
+      .toPromise();
+  }
+
   attachToInput(inputText=null) {
     cld = cld || pify(require('cld'));
-    
+
     let input = inputText || addEventListener(document.body, 'input')
       .flatMap((e) => {
         if (!e.target || !e.target.value) return Observable.empty();
         return Observable.just(e.target.value);
       });
-      
+
     let disp = input
-      .flatMap((text) => 
+      .flatMap((text) =>
         Observable.fromPromise(cld.listen(text))
           .catch(() => Observable.empty()))
       .subscribe((lang) => console.log(`Language is ${lang}`));
-      
+
     this.disp.setDisposable(disp);
     return disp;
   }
-  
+
   async getLikelyLocaleForLanguage(language) {
     let lang = language.toLowerCase();
     if (!this.likelyLocaleTable) this.likelyLocaleTable = await SpellCheckHandler.buildLikelyLocaleTable();
 
     if (this.likelyLocaleTable[lang]) return this.likelyLocaleTable[lang];
-    fallbackLocaleTable = fallbackLocaleTable || require('./fallback-locales');
+    this.fallbackLocaleTable = this.fallbackLocaleTable || require('./fallback-locales');
 
-    return fallbackLocaleTable[lang];
+    return this.fallbackLocaleTable[lang];
   }
-  
+
   static async buildLikelyLocaleTable() {
     let localeList = [];
-    
+
     if (process.platform === 'linux') {
       let locales = await spawn('locale', ['-a'])
         .catch(() => Observable.just(null))
         .reduce((acc,x) => { acc.push(...x.split('\n')); return acc; }, [])
         .toPromise();
-        
+
       d(`Raw Locale list: ${JSON.stringify(locales)}`);
-        
+
       localeList = locales.reduce((acc, x) => {
         let m = x.match(validLangCode);
         if (!m) return acc;
-        
+
         acc.push(m[0]);
         return acc;
       }, []);
     }
-    
+
     if (process.platform === 'win32') {
       localeList = getInstalledKeyboardLanguages();
     }
@@ -123,42 +145,49 @@ export default class SpellCheckHandler {
           return normalizeLanguageCode(x);
         }));
     }
-      
+
     d(`Filtered Locale list: ${JSON.stringify(localeList)}`);
-    
+
     // Some distros like Ubuntu make locale -a useless by dumping
     // every possible locale for the language into the list :-/
     let counts = localeList.reduce((acc,x) => {
       let k = x.substring(0,2);
       acc[k] = acc[k] || [];
       acc[k].push(x);
-      
+
       return acc;
     }, {});
-    
+
     d(`Counts: ${JSON.stringify(counts)}`);
-    
+
     let ret = Object.keys(counts).reduce((acc, x) => {
       if (counts[x].length > 1) return acc;
-      
+
       d(`Setting ${x}`);
       acc[x] = normalizeLanguageCode(counts[x][0]);
-      
+
       return acc;
     }, {});
-    
+
     // NB: LANG has a Special Place In Our Hearts
     if (process.platform === 'linux' && process.env.LANG) {
       let m = process.env.LANG.match(validLangCode);
       if (!m) return ret;
-      
+
       ret[m[0].substring(0, 2)] = normalizeLanguageCode(m[0]);
     }
-      
+
     d(`Result: ${JSON.stringify(ret)}`);
     return ret;
   }
-  
+
+  switchLanguage(langCode) {
+    let ret = new AsyncSubject();
+    this.switchToLanguage.onNext({ lang: langCode, completion: ret});
+
+    return ret.toPromise();
+  }
+
   dispose() {
     this.disp.dispose();
   }

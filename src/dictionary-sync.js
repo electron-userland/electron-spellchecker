@@ -1,7 +1,6 @@
 import path from 'path';
 import mkdirp from 'mkdirp';
 import {getURLForHunspellDictionary} from '@paulcbetts/spellchecker';
-import {requireTaskPool} from 'electron-remote';
 import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 import {Observable} from 'rx';
 
@@ -11,7 +10,7 @@ import {normalizeLanguageCode} from './utility';
 const d = require('debug')('electron-spellchecker:dictionary-sync');
 
 const {downloadFileOrUrl} = process.type === 'browser' ?
-  requireTaskPool(require.resolve('electron-remote/remote-ajax')) :
+  require('electron-remote').requireTaskPool(require.resolve('electron-remote/remote-ajax')) :
   require('electron-remote/remote-ajax');
 
 export default class DictionarySync {
@@ -34,6 +33,7 @@ export default class DictionarySync {
       }
     } catch (e) {
       d(`Failed to read file ${target}: ${e.message}`);
+      throw e;
     }
 
     if (fileExists) {
@@ -41,20 +41,15 @@ export default class DictionarySync {
         await fs.unlink(target);
       } catch (e) {
         d("Can't clear out file, bailing");
-        return null;
+        throw e;
       }
     }
 
-    try {
-      await downloadFileOrUrl(getURLForHunspellDictionary(lang), target);
-    } catch (e) {
-      d(`Failed to download file ${target}: ${e.message}`);
-      try { fs.unlinkSync(target); } catch(e) {}
-      return null;
-    }
+    let url = getURLForHunspellDictionary(lang);
+    d(`Actually downloading ${url}`);
+    await downloadFileOrUrl(url, target);
 
-    if (cacheOnly) return target;
-    return await fs.readFileSync(target);
+    if (cacheOnly) return target; return await fs.readFileSync(target);
   }
 
   preloadDictionaries(languageList=null) {
