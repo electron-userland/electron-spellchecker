@@ -1,0 +1,37 @@
+<html>
+<head>
+  <style type="text/less">
+  #container {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    align-content: stretch;
+    height: 100vh;
+    width: 100vw;
+  }
+  
+  #ta {
+    flex: 1 1 auto;
+  }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <textarea id="ta"></textarea>
+    <div id="info">
+      <h3>Type some text!</h3>
+      <p id="detectedLang">Unknown language</p>
+    </div>
+  </div>
+  
+  <script>
+  import SpellCheckHandler from '../src/spell-check-handler';
+  
+  window.spellCheckHandler = new SpellCheckHandler();
+  window.spellCheckHandler.attachToInput();
+  window.spellCheckHandler.currentSpellcheckerChanged.subscribe(() => {
+    document.getElementById('detectedLang').innerText = `Current language is ${window.spellCheckHandler.currentSpellcheckerLanguage}`;
+  });
+  </script>
+</body>
+</html>

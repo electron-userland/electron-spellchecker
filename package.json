@@ -9,7 +9,8 @@
     "test-renderer": "electron-mocha --renderer --require ./test/support.js ./test",
     "test-browser": "electron-mocha --browser --require ./test/support.js ./test",
     "test": "npm run test-renderer",
-    "node": "cross-env ELECTRON_RUN_AS_NODE=1 ./node_modules/electron-prebuilt-compile/node_modules/.bin/electron"
+    "node": "cross-env ELECTRON_RUN_AS_NODE=1 ./node_modules/electron-prebuilt-compile/node_modules/.bin/electron",
+    "start": "electron ./example/main.js"
   },
   "repository": {
     "type": "git",
@@ -49,6 +50,7 @@
     "chai": "^3.5.0",
     "chai-as-promised": "^5.3.0",
     "cross-env": "^1.0.8",
+    "electron-debug": "^1.0.0",
     "electron-mocha": "^2.2.0",
     "electron-prebuilt-compile": "1.1.2",
     "esdoc": "^0.4.7",
