@@ -12,11 +12,25 @@ let testCount = 0;
 
 const deDE = "Rechtschreibprüfungsleid ist eine Grunderfahrung und bezeichnet als Sammelbegriff all dasjenige, was einen Menschen körperlich und seelisch belastet.";
 
+class FakeLocalStorage {
+  constructor() {
+    this.ls = {};
+  }
+  
+  getItem(item) {
+    return this.ls[item];
+  }
+  
+  setItem(item, val) {
+    this.ls[item] = val;
+  }
+}
+
 describe('The Spell Check Handler Class', function() {
   beforeEach(function() {
     this.tempCacheDir = path.join(__dirname, `__spell_check${testCount++}`);
     this.sync = new DictionarySync(this.tempCacheDir);
-    this.fixture = new SpellCheckHandler(this.sync);
+    this.fixture = new SpellCheckHandler(this.sync, new FakeLocalStorage());
   });
 
   afterEach(function() {

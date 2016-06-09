@@ -80,10 +80,17 @@ export default class SpellCheckHandler {
   }
 
   async loadDictionaryForLanguageWithAlternatives(langCode, cacheOnly=false) {
+    const localStorageKey =  'electronSpellchecker_alternatesTable';
+    
     this.fallbackLocaleTable = this.fallbackLocaleTable || require('./fallback-locales');
     let lang = langCode.substring(0, 2);
 
     let alternatives = [langCode, await this.getLikelyLocaleForLanguage(lang), this.fallbackLocaleTable[lang]];
+    let alternatesTable = JSON.parse(this.localStorage.getItem(localStorageKey) || '{}');
+    
+    if (langCode in alternatesTable) {
+      return await this.dictionarySync.loadDictionaryForLanguage(alternatesTable[langCode]);
+    }
 
     d(`Requesting to load ${langCode}, alternatives are ${JSON.stringify(alternatives)}`);
     return await Observable.of(...alternatives)
@@ -91,6 +98,10 @@ export default class SpellCheckHandler {
         return Observable.defer(() => 
             Observable.fromPromise(this.dictionarySync.loadDictionaryForLanguage(l, cacheOnly)))
           .map((d) => ({language: l, dictionary: d}))
+          .do(({language}) => {
+            alternatesTable[langCode] = language;
+            this.localStorage.setItem(localStorageKey, JSON.stringify(alternatesTable));
+          })
           .catch(() => Observable.just(null));
       })
       .filter((x) => x !== null)
