@@ -89,7 +89,10 @@ export default class SpellCheckHandler {
     let alternatesTable = JSON.parse(this.localStorage.getItem(localStorageKey) || '{}');
     
     if (langCode in alternatesTable) {
-      return await this.dictionarySync.loadDictionaryForLanguage(alternatesTable[langCode]);
+      return {
+        language: alternatesTable[langCode],
+        dictionary: await this.dictionarySync.loadDictionaryForLanguage(alternatesTable[langCode])
+      };
     }
 
     d(`Requesting to load ${langCode}, alternatives are ${JSON.stringify(alternatives)}`);
@@ -184,6 +187,31 @@ export default class SpellCheckHandler {
 
     this.disp.setDisposable(disp);
     return disp;
+  }
+  
+  autoUnloadDictionariesOnBlur() {
+    let ret = new CompositeDisposable();
+    let hasUnloaded = false;
+    
+    ret.add(Observable.fromEvent(window, 'blur').subscribe(() => {
+      d(`Unloading spellchecker`);
+      this.currentSpellchecker = null;
+      hasUnloaded = true;
+    }));
+    
+    ret.add(Observable.fromEvent(window, 'focus').flatMap(() => {
+      if (!hasUnloaded) return Observable.empty();
+      if (!this.currentSpellcheckerLanguage) return Observable.empty();
+      
+      d(`Restoring spellchecker`);
+      return this.switchLanguage(this.currentSpellcheckerLanguage)
+        .catch((e) => {
+          d(`Failed to restore spellchecker: ${e.message}`);
+          return Observable.empty();
+        });
+    }).subscribe());
+    
+    return ret;
   }
   
   handleElectronSpellCheck(text) {
