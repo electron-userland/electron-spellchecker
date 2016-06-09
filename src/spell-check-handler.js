@@ -43,26 +43,6 @@ export default class SpellCheckHandler {
       this.currentSpellchecker = new Spellchecker();
       return;
     }
-
-    this.switchToLanguage
-      .flatMap(({lang, completion}) =>
-        Observable.fromPromise(this.loadDictionaryForLanguageWithAlternatives(lang))
-          .map((dict) => ({ language: lang, dictionary: dict, completion }))
-          .catch((e) => {
-            d(`Failed to load dictionary ${lang}: ${e.message}`);
-            completion.onError(e);
-            return Observable.just(null);
-          }))
-      .where((x) => x)
-      .observeOn(Scheduler.default)
-      .subscribe(({language, dictionary, completion}) => {
-        d(dictionary);
-        this.currentSpellchecker = new Spellchecker();
-        this.currentSpellchecker.setDictionary(language, dictionary);
-
-        completion.onNext(true);
-        completion.onCompleted(true);
-      });
   }
 
   async loadDictionaryForLanguageWithAlternatives(langCode, cacheOnly=false) {
@@ -76,6 +56,7 @@ export default class SpellCheckHandler {
       .concatMap((l) => {
         return Observable.defer(() => 
             Observable.fromPromise(this.dictionarySync.loadDictionaryForLanguage(l, cacheOnly)))
+          .map((d) => ({language: l, dictionary: d}))
           .catch(() => Observable.just(null));
       })
       .filter((x) => x !== null)
@@ -183,11 +164,25 @@ export default class SpellCheckHandler {
     return ret;
   }
 
-  switchLanguage(langCode) {
-    let ret = new AsyncSubject();
-    this.switchToLanguage.onNext({ lang: langCode, completion: ret});
-
-    return ret.toPromise();
+  async switchLanguage(langCode) {
+    let actualLang;
+    let dict = null;
+    
+    try {
+      let {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
+      actualLang = language;  dict = dictionary;
+    } catch (e) {
+      d(`Failed to load dictionary ${langCode}: ${e.message}`);
+      throw e;
+    }
+    
+    // NB: If we set the spellchecker inside the spellchecker callout itself, we 
+    // will segfault
+    await new Promise((req) => setTimeout(req, 0));
+    
+    d(`Setting current spellchecker to ${actualLang}, requested language was ${langCode}`);
+    this.currentSpellchecker = new Spellchecker();
+    this.currentSpellchecker.setDictionary(actualLang, dict);
   }
 
   dispose() {
