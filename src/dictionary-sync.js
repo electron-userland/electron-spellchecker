@@ -9,14 +9,18 @@ import {normalizeLanguageCode} from './utility';
 
 const d = require('debug')('electron-spellchecker:dictionary-sync');
 
+const app = process.type === 'renderer' ?
+  require('electron').remote.app :
+  require('electron').app;
+
 const {downloadFileOrUrl} = process.type === 'browser' ?
   require('electron-remote').requireTaskPool(require.resolve('electron-remote/remote-ajax')) :
   require('electron-remote/remote-ajax');
 
 export default class DictionarySync {
-  constructor(cacheDir) {
-    this.cacheDir = cacheDir;
-    mkdirp.sync(cacheDir);
+  constructor(cacheDir=null) {
+    this.cacheDir = cacheDir || path.join(app.getPath('userData'), 'dictionaries');
+    mkdirp.sync(this.cacheDir);
   }
 
   async loadDictionaryForLanguage(langCode, cacheOnly=false) {
@@ -28,10 +32,10 @@ export default class DictionarySync {
 
     let fileExists = false;
     try {
-      if (await fs.exists(target)) {
+      if (fs.existsSync(target)) {
         fileExists = true;
         d(`Returning local copy: ${target}`);
-        return await fs.readFileSync(target);
+        return await fs.readFile(target, {});
       }
     } catch (e) {
       d(`Failed to read file ${target}: ${e.message}`);
@@ -51,7 +55,7 @@ export default class DictionarySync {
     d(`Actually downloading ${url}`);
     await downloadFileOrUrl(url, target);
 
-    if (cacheOnly) return target; return await fs.readFileSync(target);
+    if (cacheOnly) return target; return await fs.readFile(target, {});
   }
 
   preloadDictionaries(languageList=null) {

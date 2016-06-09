@@ -1,7 +1,6 @@
-import {Disposable, Observable, Scheduler, SerialDisposable, Subject} from 'rx';
+import {CompositeDisposable, Disposable, Observable, Scheduler, SerialDisposable, Subject} from 'rx';
 import {Spellchecker} from '@paulcbetts/spellchecker';
 import {getInstalledKeyboardLanguages} from 'keyboard-layout';
-import pify from 'pify';
 import {spawn} from 'spawn-rx';
 
 import './custom-operators';
@@ -32,7 +31,7 @@ const contractions = [
   "would've", "wouldn't", "wouldn't've", "y'all", "y'all'd've", "you'd", "you'd've", "you'll", "you're", "you've"
 ];
 
-const contractionMap = contractions.reduce(contractions, (acc, word) => {
+const contractionMap = contractions.reduce((acc, word) => {
   acc[word.replace(/'.*/, '')] = true;
   return acc;
 }, {});
@@ -127,12 +126,12 @@ export default class SpellCheckHandler {
       .take(1)
       .repeat();
 
-    let disp = new Disposable();
+    let disp = new CompositeDisposable();
     disp.add(languageDetectionMatches
       .flatMap(async (langWithoutLocale) => {
         d(`Auto-detected language as ${langWithoutLocale}`);
         let lang = await this.getLikelyLocaleForLanguage(langWithoutLocale);
-        await this.switchLanguage(lang);
+        if (lang !== this.currentSpellcheckerLanguage) await this.switchLanguage(lang);
         
         return lang;
       })
@@ -144,17 +143,18 @@ export default class SpellCheckHandler {
         d(`New Language is ${lang}`);
       }));
       
-    if (this.webFrame) {
+    if (webFrame) {
       disp.add(this.currentSpellcheckerChanged
-        .observeOn(this.scheduler)
+          .observeOn(this.scheduler)
         .where(() => this.currentSpellchecker)
-        .subscribe(() =>
+        .subscribe(() => {
+          d('Actually installing spell check provider to Electron');
+          
           webFrame.setSpellCheckProvider(
             this.currentSpellcheckerLanguage, 
             this.shouldAutoCorrect, 
-            { spellchecker: this.handleElectronSpellCheck.bind(this) })
-          )
-      );
+            { spellCheck: this.handleElectronSpellCheck.bind(this) });
+        }));
     }
 
     this.disp.setDisposable(disp);
@@ -165,14 +165,19 @@ export default class SpellCheckHandler {
     if (!this.currentSpellchecker) return true;
     if (contractionMap[text.toLocaleLowerCase()]) return true;
   
-    return this.currentSpellchecker.isMisspelled(text);
+    d(`Checking spelling of ${text}`);
+    return !this.currentSpellchecker.isMisspelled(text);
   }
   
-  async detectLanguageForText(text) {
-    cld = cld || pify(require('cld'));
-    let result = await cld.detect(text);
-    
-    return result.languages[0].code;
+  detectLanguageForText(text) {
+    // NB: Unfortuantely cld marshals errors incorrectly, so we can't use pify
+    cld = cld || require('cld');
+    return new Promise((res,rej) => {
+      cld.detect(text, (err, result) => {
+        if (err) { rej(new Error(err.message)); return; }
+        res(result.languages[0].code);
+      });
+    });
   }
   
   async getLikelyLocaleForLanguage(language) {
@@ -270,6 +275,7 @@ export default class SpellCheckHandler {
     
     d(`Setting current spellchecker to ${actualLang}, requested language was ${langCode}`);
     if (this.currentSpellcheckerLanguage !== actualLang) {
+      d(`Creating node-spellchecker instance`);
       this.currentSpellchecker = new Spellchecker();
       this.currentSpellchecker.setDictionary(actualLang, dict);
       this.currentSpellcheckerLanguage = actualLang;
