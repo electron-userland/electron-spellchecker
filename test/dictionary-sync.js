@@ -17,8 +17,8 @@ describe('The Dictionary Sync class', function() {
   });
 
   afterEach(function() {
-    console.log(this.tempCacheDir);
-    //rimraf.sync(this.tempCacheDir);
+    //console.log(this.tempCacheDir);
+    rimraf.sync(this.tempCacheDir);
   });
 
   describe('loadDictionaryForLanguage method', function() {
@@ -47,7 +47,6 @@ describe('The Dictionary Sync class', function() {
 
     it('should only have valid languages in the fallback locale list', async function() {
       return;
-
       /* NB: This test isn't super important, but it's interesting code so I left
        * it
       this.timeout(10 * 60 * 1000);

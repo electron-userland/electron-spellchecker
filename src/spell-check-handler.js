@@ -35,6 +35,7 @@ export default class SpellCheckHandler {
     this.currentSpellchecker = null;
     this.currentSpellcheckerLanguage = null;
     this.localStorage = localStorage || window.localStorage;
+
     this.disp = new SerialDisposable();
 
     if (process.platform === 'darwin') {
