@@ -6,7 +6,6 @@ import rimraf from 'rimraf';
 import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 
 import DictionarySync from '../src/dictionary-sync';
-import fallbackLocales from '../src/fallback-locales';
 
 let testCount = 0;
 

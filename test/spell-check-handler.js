@@ -1,5 +1,6 @@
 import './support';
 import path from 'path';
+import rimraf from 'rimraf';
 
 import DictionarySync from '../src/dictionary-sync';
 import SpellCheckHandler from '../src/spell-check-handler';
@@ -20,17 +21,17 @@ describe('The Spell Check Handler Class', function() {
     this.timeout(30*1000);
 
     beforeEach(function() {
-      this.tempCacheDir = path.join(__dirname, `__dict_sync_${testCount++}`);
+      this.tempCacheDir = path.join(__dirname, `__spell_check${testCount++}`);
       this.sync = new DictionarySync(this.tempCacheDir);
       this.fixture = new SpellCheckHandler(this.sync);
     });
 
     afterEach(function() {
-      console.log(this.tempCacheDir);
-      //rimraf.sync(this.tempCacheDir);
+      //console.log(this.tempCacheDir);
+      rimraf.sync(this.tempCacheDir);
     });
 
-    it.only('should load a bunch of common languages', async function() {
+    it('should load a bunch of common languages', async function() {
       await this.fixture.switchLanguage('en-US');
 
       expect(this.fixture.currentSpellchecker.isMisspelled('bucket')).not.to.be.ok;

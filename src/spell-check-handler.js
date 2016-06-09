@@ -72,9 +72,10 @@ export default class SpellCheckHandler {
     let alternatives = [langCode, await this.getLikelyLocaleForLanguage(lang), this.fallbackLocaleTable[lang]];
 
     d(`Requesting to load ${langCode}, alternatives are ${JSON.stringify(alternatives)}`);
-    return await Observable.just(alternatives)
+    return await Observable.of(...alternatives)
       .concatMap((l) => {
-        return Observable.defer(() => Observable.fromPromise(this.dictionarySync.loadDictionaryForLanguage(l, cacheOnly)))
+        return Observable.defer(() => 
+            Observable.fromPromise(this.dictionarySync.loadDictionaryForLanguage(l, cacheOnly)))
           .catch(() => Observable.just(null));
       })
       .filter((x) => x !== null)

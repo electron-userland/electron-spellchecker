@@ -20,6 +20,7 @@ export default class DictionarySync {
   }
 
   async loadDictionaryForLanguage(langCode, cacheOnly=false) {
+    d(`Loading dictionary for language ${langCode}`);
     if (process.platform === 'darwin') return new Buffer([]);
 
     let lang = normalizeLanguageCode(langCode);
@@ -29,6 +30,7 @@ export default class DictionarySync {
     try {
       if (await fs.exists(target)) {
         fileExists = true;
+        d(`Returning local copy: ${target}`);
         return await fs.readFileSync(target);
       }
     } catch (e) {
