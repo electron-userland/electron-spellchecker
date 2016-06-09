@@ -32,6 +32,8 @@
   window.spellCheckHandler.currentSpellcheckerChanged.subscribe(() => {
     document.getElementById('detectedLang').innerText = `Current language is ${window.spellCheckHandler.currentSpellcheckerLanguage}`;
   });
+  
+  window.spellCheckHandler.provideHintText('This is probably the language that you want to check in');
   </script>
 </body>
 </html>

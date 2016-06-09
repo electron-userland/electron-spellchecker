@@ -260,6 +260,19 @@ export default class SpellCheckHandler {
     d(`Result: ${JSON.stringify(ret)}`);
     return ret;
   }
+  
+  async provideHintText(inputText) {
+    let langWithoutLocale = null;
+    try {
+      langWithoutLocale = await this.detectLanguageForText(inputText);
+    } catch (e) {
+      d(`Couldn't detect language for text '${inputText}': ${e.message}, ignoring sample`);
+      return;
+    }
+    
+    let lang = await this.getLikelyLocaleForLanguage(langWithoutLocale);
+    await this.switchLanguage(lang);
+  }
 
   async switchLanguage(langCode) {
     let actualLang;
