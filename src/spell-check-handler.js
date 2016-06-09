@@ -17,6 +17,26 @@ let webFrame = (process.type === 'renderer' ?
 
 const validLangCode = /[a-z]{2}[_][A-Z]{2}/;
 
+// NB: This is to work around electron/electron#1005, where contractions
+// are incorrectly marked as spelling errors. This lets people get away with
+// incorrectly spelled contracted words, but it's the best we can do for now.
+const contractions = [
+  "ain't", "aren't", "can't", "could've", "couldn't", "couldn't've", "didn't", "doesn't", "don't", "hadn't",
+  "hadn't've", "hasn't", "haven't", "he'd", "he'd've", "he'll", "he's", "how'd", "how'll", "how's", "I'd",
+  "I'd've", "I'll", "I'm", "I've", "isn't", "it'd", "it'd've", "it'll", "it's", "let's", "ma'am", "mightn't",
+  "mightn't've", "might've", "mustn't", "must've", "needn't", "not've", "o'clock", "shan't", "she'd", "she'd've",
+  "she'll", "she's", "should've", "shouldn't", "shouldn't've", "that'll", "that's", "there'd", "there'd've",
+  "there're", "there's", "they'd", "they'd've", "they'll", "they're", "they've", "wasn't", "we'd", "we'd've",
+  "we'll", "we're", "we've", "weren't", "what'll", "what're", "what's", "what've", "when's", "where'd",
+  "where's", "where've", "who'd", "who'll", "who're", "who's", "who've", "why'll", "why're", "why's", "won't",
+  "would've", "wouldn't", "wouldn't've", "y'all", "y'all'd've", "you'd", "you'd've", "you'll", "you're", "you've"
+];
+
+const contractionMap = contractions.reduce(contractions, (acc, word) => {
+  acc[word.replace(/'.*/, '')] = true;
+  return acc;
+}, {});
+
 function fromEventCapture(element, name) {
   return Observable.create((subj) => {
     const handler = function(...args) {
@@ -41,6 +61,7 @@ export default class SpellCheckHandler {
     this.currentSpellcheckerChanged = new Subject();
     this.localStorage = localStorage || window.localStorage;
     this.scheduler = scheduler || Scheduler.default;
+    this.shouldAutoCorrect = true;
 
     this.disp = new SerialDisposable();
 
@@ -106,7 +127,8 @@ export default class SpellCheckHandler {
       .take(1)
       .repeat();
 
-    let disp = languageDetectionMatches
+    let disp = new Disposable();
+    disp.add(languageDetectionMatches
       .flatMap(async (langWithoutLocale) => {
         d(`Auto-detected language as ${langWithoutLocale}`);
         let lang = await this.getLikelyLocaleForLanguage(langWithoutLocale);
@@ -118,10 +140,32 @@ export default class SpellCheckHandler {
         d(`Failed to load dictionary: ${e.message}`);
         return Observable.empty();
       })
-      .subscribe((lang) => d(`New Language is ${lang}`));
+      .subscribe(async (lang) => {
+        d(`New Language is ${lang}`);
+      }));
+      
+    if (this.webFrame) {
+      disp.add(this.currentSpellcheckerChanged
+        .observeOn(this.scheduler)
+        .where(() => this.currentSpellchecker)
+        .subscribe(() =>
+          webFrame.setSpellCheckProvider(
+            this.currentSpellcheckerLanguage, 
+            this.shouldAutoCorrect, 
+            { spellchecker: this.handleElectronSpellCheck.bind(this) })
+          )
+      );
+    }
 
     this.disp.setDisposable(disp);
     return disp;
+  }
+  
+  handleElectronSpellCheck(text) {
+    if (!this.currentSpellchecker) return true;
+    if (contractionMap[text.toLocaleLowerCase()]) return true;
+  
+    return this.currentSpellchecker.isMisspelled(text);
   }
   
   async detectLanguageForText(text) {
@@ -224,12 +268,7 @@ export default class SpellCheckHandler {
       throw e;
     }
     
-    // NB: If we set the spellchecker inside the spellchecker callout itself, we 
-    // will segfault
-    await new Promise((req) => setTimeout(req, 0));
-    
     d(`Setting current spellchecker to ${actualLang}, requested language was ${langCode}`);
-    
     if (this.currentSpellcheckerLanguage !== actualLang) {
       this.currentSpellchecker = new Spellchecker();
       this.currentSpellchecker.setDictionary(actualLang, dict);
