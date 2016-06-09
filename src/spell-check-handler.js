@@ -67,6 +67,14 @@ export default class SpellCheckHandler {
     if (process.platform === 'darwin') {
       // NB: OS X does automatic language detection, we're gonna trust it
       this.currentSpellchecker = new Spellchecker();
+      this.currentSpellcheckerLanguage = 'en-US';
+      
+      if (webFrame) {
+        webFrame.setSpellCheckProvider(
+          this.currentSpellcheckerLanguage, 
+          this.shouldAutoCorrect, 
+          { spellCheck: this.handleElectronSpellCheck.bind(this) });
+      }
       return;
     }
   }
@@ -91,6 +99,11 @@ export default class SpellCheckHandler {
   }
 
   attachToInput(inputText=null) {
+    // OS X has no need for any of this
+    if (process.platform === 'darwin' && !inputText) {
+      return Disposable.empty;
+    }
+    
     let input = inputText || fromEventCapture(document.body, 'input')
       .flatMap((e) => {
         if (!e.target || !e.target.value) return Observable.empty();
@@ -145,6 +158,7 @@ export default class SpellCheckHandler {
       
     if (webFrame) {
       disp.add(this.currentSpellcheckerChanged
+          .startWith(true)
           .observeOn(this.scheduler)
         .where(() => this.currentSpellchecker)
         .subscribe(() => {
