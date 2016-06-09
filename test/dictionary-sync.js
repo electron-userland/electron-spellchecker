@@ -7,6 +7,8 @@ import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 
 import DictionarySync from '../src/dictionary-sync';
 
+const d = require('debug')('electron-spellchecker-test:dictionary-sync');
+
 let testCount = 0;
 
 describe('The Dictionary Sync class', function() {
@@ -38,8 +40,8 @@ describe('The Dictionary Sync class', function() {
         return;
       }
 
-      console.log(ret);
-      console.log(typeof ret);
+      d(ret);
+      d(typeof ret);
       fs.writeFileSync('./wtfisthisfile', ret);
       throw new Error("Didn't fail!");
     });
