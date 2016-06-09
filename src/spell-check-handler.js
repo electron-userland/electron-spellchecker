@@ -92,13 +92,17 @@ export default class SpellCheckHandler {
     let userStartedTyping = input
       .concatMap(() => Observable.return(true).concat(Observable.never()))
       .takeUntil(input.guaranteedThrottle(750, this.scheduler))
-      .repeat();
+      .repeat()
+      .startWith(true);
       
     let languageDetectionMatches = userStartedTyping
+      .do(() => d('User started typing'))
       .flatMap(() => input.sample(2000, this.scheduler))
-      .flatMap((text) =>
-        Observable.fromPromise(this.detectLanguageForText(text))
-          .catch(() => Observable.empty()))
+      .flatMap((text) => {
+        d(`Attempting detection of ${text}`);
+        return Observable.fromPromise(this.detectLanguageForText(text))
+          .catch(() => Observable.empty());
+      })
       .take(1)
       .repeat();
 

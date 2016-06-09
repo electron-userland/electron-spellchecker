@@ -10,6 +10,8 @@ const d = require('debug')('electron-spellchecker-test:spell-check-handler');
 
 let testCount = 0;
 
+const deDE = "Rechtschreibprüfungsleid ist eine Grunderfahrung und bezeichnet als Sammelbegriff all dasjenige, was einen Menschen körperlich und seelisch belastet.";
+
 describe('The Spell Check Handler Class', function() {
   beforeEach(function() {
     this.tempCacheDir = path.join(__dirname, `__spell_check${testCount++}`);
@@ -66,7 +68,7 @@ describe('The Spell Check Handler Class', function() {
       expect(items.length).to.equal(1);
     });
 
-    it.only('should detect the simple case of pasting in a long string', async function() {
+    it('should detect the simple case of pasting in a long string', async function() {
       this.timeout(15 * 1000);
 
       let scheduler = new TestScheduler();
@@ -85,9 +87,7 @@ describe('The Spell Check Handler Class', function() {
       expect(this.fixture.currentSpellcheckerLanguage).to.equal('en-US');
     });
     
-    it.only('shouldnt call cld over and over while users are typing', async function() {
-      this.timeout(15 * 1000);
-      
+    it('shouldnt call cld over and over while users are typing', async function() {
       let scheduler = new TestScheduler();
       let input = scheduler.createHotObservable(
         ReactiveTest.onNext(10, 'T'),
@@ -136,8 +136,39 @@ describe('The Spell Check Handler Class', function() {
       // the event loop :-/
       await new Promise((req) => setTimeout(req, 20));
       
-      expect(langDetectCount).to.equal(1);
+      expect(langDetectCount).to.equal(2);
       expect(currentLanguage).to.equal('en-US');
+    });
+    
+    it('should switch languages if users type different text', async function() {
+      this.timeout(15 * 1000);
+
+      let scheduler = new TestScheduler();
+      let input = scheduler.createHotObservable(
+        ReactiveTest.onNext(10, 'This is a test of a long english sentence'),
+        ReactiveTest.onNext(15*1000, ''),
+        ReactiveTest.onNext(30*1000, deDE)
+      ).do((x) => d(`Emitted ${x}`)).publish().refCount();
+
+      this.fixture.scheduler = scheduler;
+      this.fixture.attachToInput(input);
+
+      expect(this.fixture.currentSpellcheckerLanguage).not.to.be.ok;
+        
+      d('Advancing to +10s');
+      scheduler.advanceTo(10*1000);
+      await this.fixture.currentSpellcheckerChanged.take(1).toPromise();
+      expect(this.fixture.currentSpellcheckerLanguage).to.equal('en-US');    
+      
+      d('Advancing to +20s');
+      scheduler.advanceTo(20*1000);
+      await new Promise((req) => setTimeout(req, 50));
+      expect(this.fixture.currentSpellcheckerLanguage).to.equal('en-US');    
+      
+      d('Advancing to +60s');
+      scheduler.advanceTo(60*1000);
+      await this.fixture.currentSpellcheckerChanged.take(1).toPromise();
+      expect(this.fixture.currentSpellcheckerLanguage.substring(0,2)).to.equal('de');
     });
   });
 });
