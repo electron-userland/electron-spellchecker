@@ -14,7 +14,9 @@ let webFrame = (process.type === 'renderer' ?
   require('electron').webFrame :
   null);
 
-const validLangCode = /[a-z]{2}[_][A-Z]{2}/;
+// NB: Linux and Windows uses underscore in languages (i.e. 'en_US'), whereas
+// we're trying really hard to match the Chromium way of `en-US`
+const validLangCodeWindowsLinux = /[a-z]{2}[_][A-Z]{2}/;
 
 // NB: This is to work around electron/electron#1005, where contractions
 // are incorrectly marked as spelling errors. This lets people get away with
@@ -255,7 +257,7 @@ export default class SpellCheckHandler {
       d(`Raw Locale list: ${JSON.stringify(locales)}`);
 
       localeList = locales.reduce((acc, x) => {
-        let m = x.match(validLangCode);
+        let m = x.match(validLangCodeWindowsLinux);
         if (!m) return acc;
 
         acc.push(m[0]);
@@ -304,7 +306,7 @@ export default class SpellCheckHandler {
 
     // NB: LANG has a Special Place In Our Hearts
     if (process.platform === 'linux' && process.env.LANG) {
-      let m = process.env.LANG.match(validLangCode);
+      let m = process.env.LANG.match(validLangCodeWindowsLinux);
       if (!m) return ret;
 
       ret[m[0].substring(0, 2)] = normalizeLanguageCode(m[0]);
