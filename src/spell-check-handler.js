@@ -1,4 +1,4 @@
-import {AsyncSubject, Disposable, Observable, Scheduler, SerialDisposable, Subject} from 'rx';
+import {Disposable, Observable, Scheduler, SerialDisposable, Subject} from 'rx';
 import {Spellchecker} from '@paulcbetts/spellchecker';
 import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 import pify from 'pify';
@@ -10,6 +10,9 @@ import {normalizeLanguageCode} from './utility';
 const d = require('debug')('electron-spellchecker:spell-check-handler');
 let cld = null;
 let fallbackLocaleTable = null;
+let webFrame = (process.type === 'renderer' ? 
+  require('electron').webFrame :
+  null);
 
 const validLangCode = /[a-z]{2}[_][A-Z]{2}/;
 
@@ -29,12 +32,14 @@ function fromEventCapture(element, name) {
 }
 
 export default class SpellCheckHandler {
-  constructor(dictionarySync=null, localStorage=null) {
+  constructor(dictionarySync=null, localStorage=null, scheduler=null) {
     this.dictionarySync = dictionarySync || new DictionarySync();
     this.switchToLanguage = new Subject();
     this.currentSpellchecker = null;
     this.currentSpellcheckerLanguage = null;
+    this.currentSpellcheckerChanged = new Subject();
     this.localStorage = localStorage || window.localStorage;
+    this.scheduler = scheduler || Scheduler.default;
 
     this.disp = new SerialDisposable();
 
@@ -70,14 +75,49 @@ export default class SpellCheckHandler {
     let input = inputText || addEventListener(document.body, 'input')
       .flatMap((e) => {
         if (!e.target || !e.target.value) return Observable.empty();
-        return Observable.just(e.target.value);
+        return Observable.of(e.target.value);
       });
-
-    let disp = input
+      
+    // Here's how this works - basically the idea is, we want a notification
+    // for when someone *starts* typing, but only at the beginning of a series
+    // of keystrokes, we don't want to hear anything while they're typing, and
+    // we don't want to hear about it when they're not typing at all, so we're
+    // only calling getCurrentKeyboardLanguage when it makes sense.
+    //
+    // To do that, we're going to listen on event, then map that to an Observable
+    // that returns a value then never ends. But! We're gonna *also* terminate that
+    // Observable once the user stops typing (the takeUntil). Then, we're gonna
+    // keep doing that forever (effectively waiting for the next inputEvent). The
+    // startWith(true) makes sure that we have an initial value on startup, then we
+    // map that
+    let userStartedTyping = input
+      .concatMap(() => Observable.return(true).concat(Observable.never()))
+      .takeUntil(input.throttle(750, this.scheduler))
+      .repeat()
+      .startWith(true);
+      
+    let languageDetectionMatches = userStartedTyping
+      .flatMap(() => input.sample(2000, this.scheduler))
       .flatMap((text) =>
-        Observable.fromPromise(cld.listen(text))
+        Observable.fromPromise(cld.detect(text))
+          .map((x) => x.languages[0].code)
           .catch(() => Observable.empty()))
-      .subscribe((lang) => console.log(`Language is ${lang}`));
+      .take(1)
+      .repeat();
+
+    let disp = languageDetectionMatches
+      .flatMap(async (langWithoutLocale) => {
+        d(`Auto-detected language as ${langWithoutLocale}`);
+        let lang = await this.getLikelyLocaleForLanguage(langWithoutLocale);
+        await this.switchLanguage(lang);
+        
+        return lang;
+      })
+      .catch((e) => {
+        d(`Failed to load dictionary: ${e.message}`);
+        return Observable.empty();
+      })
+      .subscribe((lang) => d(`New Language is ${lang}`));
 
     this.disp.setDisposable(disp);
     return disp;
@@ -181,8 +221,13 @@ export default class SpellCheckHandler {
     await new Promise((req) => setTimeout(req, 0));
     
     d(`Setting current spellchecker to ${actualLang}, requested language was ${langCode}`);
-    this.currentSpellchecker = new Spellchecker();
-    this.currentSpellchecker.setDictionary(actualLang, dict);
+    
+    if (this.currentSpellcheckerLanguage !== actualLang) {
+      this.currentSpellchecker = new Spellchecker();
+      this.currentSpellchecker.setDictionary(actualLang, dict);
+      this.currentSpellcheckerLanguage = actualLang;
+      this.currentSpellcheckerChanged.onNext(true);
+    }
   }
 
   dispose() {
