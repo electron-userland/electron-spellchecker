@@ -4,6 +4,7 @@ import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 import pify from 'pify';
 import {spawn} from 'spawn-rx';
 
+import './custom-operators';
 import DictionarySync from './dictionary-sync';
 import {normalizeLanguageCode} from './utility';
 
@@ -70,9 +71,7 @@ export default class SpellCheckHandler {
   }
 
   attachToInput(inputText=null) {
-    cld = cld || pify(require('cld'));
-
-    let input = inputText || addEventListener(document.body, 'input')
+    let input = inputText || fromEventCapture(document.body, 'input')
       .flatMap((e) => {
         if (!e.target || !e.target.value) return Observable.empty();
         return Observable.of(e.target.value);
@@ -92,15 +91,13 @@ export default class SpellCheckHandler {
     // map that
     let userStartedTyping = input
       .concatMap(() => Observable.return(true).concat(Observable.never()))
-      .takeUntil(input.throttle(750, this.scheduler))
-      .repeat()
-      .startWith(true);
+      .takeUntil(input.guaranteedThrottle(750, this.scheduler))
+      .repeat();
       
     let languageDetectionMatches = userStartedTyping
       .flatMap(() => input.sample(2000, this.scheduler))
       .flatMap((text) =>
-        Observable.fromPromise(cld.detect(text))
-          .map((x) => x.languages[0].code)
+        Observable.fromPromise(this.detectLanguageForText(text))
           .catch(() => Observable.empty()))
       .take(1)
       .repeat();
@@ -122,7 +119,14 @@ export default class SpellCheckHandler {
     this.disp.setDisposable(disp);
     return disp;
   }
-
+  
+  async detectLanguageForText(text) {
+    cld = cld || pify(require('cld'));
+    let result = await cld.detect(text);
+    
+    return result.languages[0].code;
+  }
+  
   async getLikelyLocaleForLanguage(language) {
     let lang = language.toLowerCase();
     if (!this.likelyLocaleTable) this.likelyLocaleTable = await SpellCheckHandler.buildLikelyLocaleTable();
