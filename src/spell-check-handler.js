@@ -10,7 +10,7 @@ import {normalizeLanguageCode} from './utility';
 const d = require('debug')('electron-spellchecker:spell-check-handler');
 let cld = null;
 let fallbackLocaleTable = null;
-let webFrame = (process.type === 'renderer' ? 
+let webFrame = (process.type === 'renderer' ?
   require('electron').webFrame :
   null);
 
@@ -37,6 +37,9 @@ const contractionMap = contractions.reduce((acc, word) => {
   acc[word.replace(/'.*/, '')] = true;
   return acc;
 }, {});
+
+// NB: Even on Windows we use Hunspell
+process.env['SPELLCHECKER_PREFER_HUNSPELL'] = 1;
 
 function fromEventCapture(element, name) {
   return Observable.create((subj) => {
@@ -70,11 +73,11 @@ export default class SpellCheckHandler {
       // NB: OS X does automatic language detection, we're gonna trust it
       this.currentSpellchecker = new Spellchecker();
       this.currentSpellcheckerLanguage = 'en-US';
-      
+
       if (webFrame) {
         webFrame.setSpellCheckProvider(
-          this.currentSpellcheckerLanguage, 
-          this.shouldAutoCorrect, 
+          this.currentSpellcheckerLanguage,
+          this.shouldAutoCorrect,
           { spellCheck: this.handleElectronSpellCheck.bind(this) });
       }
       return;
@@ -83,13 +86,13 @@ export default class SpellCheckHandler {
 
   async loadDictionaryForLanguageWithAlternatives(langCode, cacheOnly=false) {
     const localStorageKey =  'electronSpellchecker_alternatesTable';
-    
+
     this.fallbackLocaleTable = this.fallbackLocaleTable || require('./fallback-locales');
     let lang = langCode.substring(0, 2);
 
     let alternatives = [langCode, await this.getLikelyLocaleForLanguage(lang), this.fallbackLocaleTable[lang]];
     let alternatesTable = JSON.parse(this.localStorage.getItem(localStorageKey) || '{}');
-    
+
     if (langCode in alternatesTable) {
       return {
         language: alternatesTable[langCode],
@@ -100,7 +103,7 @@ export default class SpellCheckHandler {
     d(`Requesting to load ${langCode}, alternatives are ${JSON.stringify(alternatives)}`);
     return await Observable.of(...alternatives)
       .concatMap((l) => {
-        return Observable.defer(() => 
+        return Observable.defer(() =>
             Observable.fromPromise(this.dictionarySync.loadDictionaryForLanguage(l, cacheOnly)))
           .map((d) => ({language: l, dictionary: d}))
           .do(({language}) => {
@@ -119,13 +122,13 @@ export default class SpellCheckHandler {
     if (process.platform === 'darwin' && !inputText) {
       return Disposable.empty;
     }
-    
+
     let input = inputText || fromEventCapture(document.body, 'input')
       .flatMap((e) => {
         if (!e.target || !e.target.value) return Observable.empty();
         return Observable.of(e.target.value);
       });
-      
+
     // Here's how this works - basically the idea is, we want a notification
     // for when someone *starts* typing, but only at the beginning of a series
     // of keystrokes, we don't want to hear anything while they're typing, and
@@ -143,7 +146,7 @@ export default class SpellCheckHandler {
       .takeUntil(input.guaranteedThrottle(750, this.scheduler))
       .repeat()
       .startWith(true);
-      
+
     let languageDetectionMatches = userStartedTyping
       .do(() => d('User started typing'))
       .flatMap(() => input.sample(2000, this.scheduler))
@@ -161,7 +164,7 @@ export default class SpellCheckHandler {
         d(`Auto-detected language as ${langWithoutLocale}`);
         let lang = await this.getLikelyLocaleForLanguage(langWithoutLocale);
         if (lang !== this.currentSpellcheckerLanguage) await this.switchLanguage(lang);
-        
+
         return lang;
       })
       .catch((e) => {
@@ -171,7 +174,7 @@ export default class SpellCheckHandler {
       .subscribe(async (lang) => {
         d(`New Language is ${lang}`);
       }));
-      
+
     if (webFrame) {
       disp.add(this.currentSpellcheckerChanged
           .startWith(true)
@@ -179,10 +182,10 @@ export default class SpellCheckHandler {
         .where(() => this.currentSpellchecker)
         .subscribe(() => {
           d('Actually installing spell check provider to Electron');
-          
+
           webFrame.setSpellCheckProvider(
-            this.currentSpellcheckerLanguage, 
-            this.shouldAutoCorrect, 
+            this.currentSpellcheckerLanguage,
+            this.shouldAutoCorrect,
             { spellCheck: this.handleElectronSpellCheck.bind(this) });
         }));
     }
@@ -190,21 +193,21 @@ export default class SpellCheckHandler {
     this.disp.setDisposable(disp);
     return disp;
   }
-  
+
   autoUnloadDictionariesOnBlur() {
     let ret = new CompositeDisposable();
     let hasUnloaded = false;
-    
+
     ret.add(Observable.fromEvent(window, 'blur').subscribe(() => {
       d(`Unloading spellchecker`);
       this.currentSpellchecker = null;
       hasUnloaded = true;
     }));
-    
+
     ret.add(Observable.fromEvent(window, 'focus').flatMap(() => {
       if (!hasUnloaded) return Observable.empty();
       if (!this.currentSpellcheckerLanguage) return Observable.empty();
-      
+
       d(`Restoring spellchecker`);
       return Observable.fromPromise(this.switchLanguage(this.currentSpellcheckerLanguage))
         .catch((e) => {
@@ -212,18 +215,18 @@ export default class SpellCheckHandler {
           return Observable.empty();
         });
     }).subscribe());
-    
+
     return ret;
   }
-  
+
   handleElectronSpellCheck(text) {
     if (!this.currentSpellchecker) return true;
     if (contractionMap[text.toLocaleLowerCase()]) return true;
-  
+
     d(`Checking spelling of ${text}`);
     return !this.currentSpellchecker.isMisspelled(text);
   }
-  
+
   detectLanguageForText(text) {
     // NB: Unfortuantely cld marshals errors incorrectly, so we can't use pify
     cld = cld || require('cld');
@@ -234,7 +237,7 @@ export default class SpellCheckHandler {
       });
     });
   }
-  
+
   async getLikelyLocaleForLanguage(language) {
     let lang = language.toLowerCase();
     if (!this.likelyLocaleTable) this.likelyLocaleTable = await SpellCheckHandler.buildLikelyLocaleTable();
@@ -244,23 +247,23 @@ export default class SpellCheckHandler {
 
     return this.fallbackLocaleTable[lang];
   }
-  
+
   async getCorrectionsForMisspelling(text) {
-    // NB: This is async even though we don't use await, to make it easy for 
+    // NB: This is async even though we don't use await, to make it easy for
     // ContextMenuBuilder to use this method even when it's hosted in another
     // renderer process via electron-remote.
     if (!this.currentSpellchecker) {
       return null;
     }
-    
+
     return this.currentSpellchecker.getCorrectionsForMisspelling(text);
   }
-  
+
   async addToDictionary(text) {
     // NB: Same deal as getCorrectionsForMisspelling.
     if (process.platform !== 'darwin') return;
-    if (!this.currentSpellchecker) return;     
-    
+    if (!this.currentSpellchecker) return;
+
     this.currentSpellchecker.add(text);
   }
 
@@ -334,7 +337,7 @@ export default class SpellCheckHandler {
     d(`Result: ${JSON.stringify(ret)}`);
     return ret;
   }
-  
+
   async provideHintText(inputText) {
     let langWithoutLocale = null;
     try {
@@ -343,7 +346,7 @@ export default class SpellCheckHandler {
       d(`Couldn't detect language for text '${inputText}': ${e.message}, ignoring sample`);
       return;
     }
-    
+
     let lang = await this.getLikelyLocaleForLanguage(langWithoutLocale);
     await this.switchLanguage(lang);
   }
@@ -351,7 +354,7 @@ export default class SpellCheckHandler {
   async switchLanguage(langCode) {
     let actualLang;
     let dict = null;
-    
+
     try {
       let {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
       actualLang = language;  dict = dictionary;
@@ -359,7 +362,7 @@ export default class SpellCheckHandler {
       d(`Failed to load dictionary ${langCode}: ${e.message}`);
       throw e;
     }
-    
+
     d(`Setting current spellchecker to ${actualLang}, requested language was ${langCode}`);
     if (this.currentSpellcheckerLanguage !== actualLang || !this.currentSpellchecker) {
       d(`Creating node-spellchecker instance`);
