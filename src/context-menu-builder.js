@@ -64,7 +64,7 @@ export default class ContextMenuBuilder {
     this.addCut(menu);
     this.addCopy(menu);
     this.addPaste(menu);
-    this.addInspectElement(menu);
+    this.addInspectElement(menu, menuInfo);
 
     return menu;
   }
@@ -100,7 +100,7 @@ export default class ContextMenuBuilder {
     menu.append(openLink);
 
     this.addImageItems(menu, menuInfo);
-    this.addInspectElement(menu);
+    this.addInspectElement(menu, menuInfo);
 
     return menu;
   }
@@ -115,7 +115,7 @@ export default class ContextMenuBuilder {
 
     this.addSearchItems(menu, menuInfo);
     this.addCopy(menu);
-    this.addInspectElement(menu);
+    this.addInspectElement(menu, menuInfo);
 
     return menu;
   }
@@ -125,11 +125,11 @@ export default class ContextMenuBuilder {
    *    
    * @return {Menu}  The `Menu`   
    */   
-  buildDefaultMenu() {
+  buildDefaultMenu(menuInfo) {
     // NB: Mac handles empty menus properly, ignoring the event entirely.
     // Windows will render a dummy (empty) item.
     let emptyMenu = process.platform === 'darwin' ? new Menu() : null;
-    return this.debugMode ? this.addInspectElement(new Menu(), false) : emptyMenu;
+    return this.debugMode ? this.addInspectElement(new Menu(), menuInfo, false) : emptyMenu;
   }
 
   /**  
@@ -150,7 +150,7 @@ export default class ContextMenuBuilder {
     }
 
     // Ensure that the text selection is a single misspelled word
-    let isSingleWord = !this.info.selection.match(/\s/);
+    let isSingleWord = !menuInfo.selection.match(/\s/);
     if (!isSingleWord) {       
       return menu;
     }
@@ -180,10 +180,10 @@ export default class ContextMenuBuilder {
         click: async () => {
           // NB: This is a gross fix to invalidate the spelling underline,
           // refer to https://github.com/tinyspeck/slack-winssb/issues/354
-          target.replaceMisspelling(this.info.selection);
+          target.replaceMisspelling(menuInfo.selection);
           
           try {
-            await this.spellChecker.add(this.info.selection);
+            await this.spellChecker.add(menuInfo.selection);
           } catch (e) {
             d(`Failed to add entry to dictionary: ${e.message}`);
           }
@@ -212,7 +212,7 @@ export default class ContextMenuBuilder {
     let search = new MenuItem({
       label: 'Search with Google',
       click: () => {
-        let url = `https://www.google.com/#q=${encodeURIComponent(this.info.selection)}`;
+        let url = `https://www.google.com/#q=${encodeURIComponent(menuInfo.selection)}`;
 
         d(`Searching Google using ${url}`);
         shell.openExternal(url);
@@ -237,7 +237,7 @@ export default class ContextMenuBuilder {
 
     let copyImage = new MenuItem({
       label: 'Copy Image',
-      click: () => this.convertImageToBase64(this.info.src,
+      click: () => this.convertImageToBase64(menuInfo.src,
         (dataURL) => clipboard.writeImage(nativeImage.createFromDataUrl(dataURL)))
     });
   
@@ -245,7 +245,7 @@ export default class ContextMenuBuilder {
 
     let copyImageUrl = new MenuItem({
       label: 'Copy Image URL',
-      click: () => clipboard.writeText(this.info.src)
+      click: () => clipboard.writeText(menuInfo.src)
     });
 
     menu.append(copyImageUrl);
@@ -311,7 +311,7 @@ export default class ContextMenuBuilder {
   /**  
    * Adds the "Inspect Element" menu item.
    */   
-  addInspectElement(menu, needsSeparator=true) {
+  addInspectElement(menu, menuInfo, needsSeparator=true) {
     let target = 'webContents' in this.windowOrWebView ? 
       this.windowOrWebView.webContents : this.windowOrWebView;
     
@@ -320,7 +320,7 @@ export default class ContextMenuBuilder {
 
     let inspect = new MenuItem({
       label: 'Inspect Element',
-      click: () => target.inspectElement(this.info.x, this.info.y)
+      click: () => target.inspectElement(menuInfo.x, menuInfo.y)
     });
 
     menu.append(inspect);
