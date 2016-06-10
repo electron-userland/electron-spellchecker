@@ -206,7 +206,7 @@ export default class SpellCheckHandler {
       if (!this.currentSpellcheckerLanguage) return Observable.empty();
       
       d(`Restoring spellchecker`);
-      return this.switchLanguage(this.currentSpellcheckerLanguage)
+      return Observable.fromPromise(this.switchLanguage(this.currentSpellcheckerLanguage))
         .catch((e) => {
           d(`Failed to restore spellchecker: ${e.message}`);
           return Observable.empty();
@@ -361,7 +361,7 @@ export default class SpellCheckHandler {
     }
     
     d(`Setting current spellchecker to ${actualLang}, requested language was ${langCode}`);
-    if (this.currentSpellcheckerLanguage !== actualLang) {
+    if (this.currentSpellcheckerLanguage !== actualLang || !this.currentSpellchecker) {
       d(`Creating node-spellchecker instance`);
       this.currentSpellchecker = new Spellchecker();
       this.currentSpellchecker.setDictionary(actualLang, dict);
