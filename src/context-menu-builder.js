@@ -19,9 +19,8 @@ export default class ContextMenuBuilder {
 
     // Opening a menu blocks the renderer process, which is definitely not
     // suitable for running tests
-    if (menu) {
-      menu.popup(remote.getCurrentWindow());
-    }  
+    if (!menu) return;
+    menu.popup(remote.getCurrentWindow());
   }
   
   /**  
@@ -249,10 +248,13 @@ export default class ContextMenuBuilder {
    * Adds the Cut menu item
    */   
   addCut(menu) {
+    let target = 'webContents' in this.windowOrWebView ? 
+      this.windowOrWebView.webContents : this.windowOrWebView;
+      
     menu.append(new MenuItem({
       label: 'Cut',
       accelerator: 'CommandOrControl+X',
-      click: () => EventActions.editingCommand('cut', this.windowId)
+      click: () => target.cut()
     }));
 
     return menu;
@@ -262,10 +264,13 @@ export default class ContextMenuBuilder {
    * Adds the Copy menu item.
    */   
   addCopy(menu) {
+    let target = 'webContents' in this.windowOrWebView ? 
+      this.windowOrWebView.webContents : this.windowOrWebView;
+    
     menu.append(new MenuItem({
       label: 'Copy',
       accelerator: 'CommandOrControl+C',
-      click: () => EventActions.editingCommand('copy', this.windowId)
+      click: () => target.copy()
     }));
 
     return menu;
@@ -275,10 +280,13 @@ export default class ContextMenuBuilder {
    * Adds the Paste menu item.
    */   
   addPaste(menu) {
+    let target = 'webContents' in this.windowOrWebView ? 
+      this.windowOrWebView.webContents : this.windowOrWebView;
+    
     menu.append(new MenuItem({
       label: 'Paste',
       accelerator: 'CommandOrControl+V',
-      click: () => EventActions.editingCommand('paste', this.windowId)
+      click: () => target.paste()
     }));
 
     return menu;
@@ -296,12 +304,15 @@ export default class ContextMenuBuilder {
    * Adds the "Inspect Element" menu item.
    */   
   addInspectElement(menu, needsSeparator=true) {
+    let target = 'webContents' in this.windowOrWebView ? 
+      this.windowOrWebView.webContents : this.windowOrWebView;
+    
     if (!this.devMode) return menu;
     if (needsSeparator) this.addSeparator(menu);
 
     let inspect = new MenuItem({
       label: 'Inspect Element',
-      click: () => this.webView.inspectElement(this.info.x, this.info.y)
+      click: () => target.inspectElement(this.info.x, this.info.y)
     });
 
     menu.append(inspect);
