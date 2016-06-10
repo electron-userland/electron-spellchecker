@@ -206,7 +206,7 @@ export default class SpellCheckHandler {
       if (!this.currentSpellcheckerLanguage) return Observable.empty();
       
       d(`Restoring spellchecker`);
-      return this.switchLanguage(this.currentSpellcheckerLanguage)
+      return Observable.fromPromise(this.switchLanguage(this.currentSpellcheckerLanguage))
         .catch((e) => {
           d(`Failed to restore spellchecker: ${e.message}`);
           return Observable.empty();
@@ -243,6 +243,25 @@ export default class SpellCheckHandler {
     this.fallbackLocaleTable = this.fallbackLocaleTable || require('./fallback-locales');
 
     return this.fallbackLocaleTable[lang];
+  }
+  
+  async getCorrectionsForMisspelling(text) {
+    // NB: This is async even though we don't use await, to make it easy for 
+    // ContextMenuBuilder to use this method even when it's hosted in another
+    // renderer process via electron-remote.
+    if (!this.currentSpellchecker) {
+      return null;
+    }
+    
+    return this.currentSpellchecker.getCorrectionsForMisspelling(text);
+  }
+  
+  async addToDictionary(text) {
+    // NB: Same deal as getCorrectionsForMisspelling.
+    if (process.platform !== 'darwin') return;
+    if (!this.currentSpellchecker) return;     
+    
+    this.currentSpellchecker.add(text);
   }
 
   static async buildLikelyLocaleTable() {
@@ -342,7 +361,7 @@ export default class SpellCheckHandler {
     }
     
     d(`Setting current spellchecker to ${actualLang}, requested language was ${langCode}`);
-    if (this.currentSpellcheckerLanguage !== actualLang) {
+    if (this.currentSpellcheckerLanguage !== actualLang || !this.currentSpellchecker) {
       d(`Creating node-spellchecker instance`);
       this.currentSpellchecker = new Spellchecker();
       this.currentSpellchecker.setDictionary(actualLang, dict);

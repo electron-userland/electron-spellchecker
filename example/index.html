@@ -21,11 +21,14 @@
     <div id="info">
       <h3>Type some text!</h3>
       <p id="detectedLang">Unknown language</p>
+      <img height="33%" src="https://pbs.twimg.com/profile_images/726464672400953344/4nX44_A7.jpg" />
     </div>
   </div>
   
   <script>
   import SpellCheckHandler from '../src/spell-check-handler';
+  import ContextMenuListener from '../src/context-menu-listener';
+  import ContextMenuBuilder from '../src/context-menu-builder';
   
   window.spellCheckHandler = new SpellCheckHandler();
   window.spellCheckHandler.attachToInput();
@@ -34,8 +37,12 @@
   });
   
   window.spellCheckHandler.provideHintText('This is probably the language that you want to check in');
-  
   window.spellCheckHandler.autoUnloadDictionariesOnBlur();
+  
+  let contextMenuBuilder = new ContextMenuBuilder(window.spellCheckHandler);
+  let contextMenuListener = new ContextMenuListener(async (info) => {
+    await contextMenuBuilder.showPopupMenu(info);
+  });
   </script>
 </body>
 </html>
