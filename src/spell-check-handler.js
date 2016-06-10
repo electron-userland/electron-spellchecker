@@ -244,6 +244,25 @@ export default class SpellCheckHandler {
 
     return this.fallbackLocaleTable[lang];
   }
+  
+  async getCorrectionsForMisspelling(text) {
+    // NB: This is async even though we don't use await, to make it easy for 
+    // ContextMenuBuilder to use this method even when it's hosted in another
+    // renderer process via electron-remote.
+    if (!this.currentSpellchecker) {
+      return null;
+    }
+    
+    return this.currentSpellchecker.getCorrectionsForMisspelling(text);
+  }
+  
+  async addToDictionary(text) {
+    // NB: Same deal as getCorrectionsForMisspelling.
+    if (process.platform !== 'darwin') return;
+    if (!this.currentSpellchecker) return;     
+    
+    this.currentSpellchecker.add(text);
+  }
 
   static async buildLikelyLocaleTable() {
     let localeList = [];

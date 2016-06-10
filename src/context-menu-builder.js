@@ -1,21 +1,19 @@
 import {clipboard, nativeImage, remote, shell} from 'electron';
 
-import DictionarySync from './dictionary-sync';
-import EventActions from '../actions/event-actions';
-
 const {Menu, MenuItem} = remote;
 
 const d = require('debug')('electron-spellchecker:context-menu-builder');
 
 export default class ContextMenuBuilder {
-  constructor(windowOrWebView=null, debugMode=false) {
+  constructor(spellCheckHandler, windowOrWebView=null, debugMode=false) {
+    this.spellCheckHandler = spellCheckHandler;
     this.windowOrWebView = this.windowOrWebView || remote.getCurrentWindow();
     this.debugMode = debugMode;
     this.menu = null;
   }
   
-  showPopupMenu(contextInfo) {
-    let menu = this.buildMenuForElement(contextInfo);
+  async showPopupMenu(contextInfo) {
+    let menu = await this.buildMenuForElement(contextInfo);
 
     // Opening a menu blocks the renderer process, which is definitely not
     // suitable for running tests
@@ -37,12 +35,12 @@ export default class ContextMenuBuilder {
    * 
    * @return {Menu}      The newly created `Menu`   
    */   
-  buildMenuForElement(info) {
+  async buildMenuForElement(info) {
     d(`Got context menu event with args: ${JSON.stringify(info)}`);
 
     switch (info.type) {
     case 'textInput':
-      return this.buildMenuForTextInput(info);
+      return await this.buildMenuForTextInput(info);
     case 'link':
       return this.buildMenuForLink(info);
     case 'text':
@@ -57,10 +55,10 @@ export default class ContextMenuBuilder {
    *    
    * @return {Menu}  The `Menu`   
    */   
-  buildMenuForTextInput(menuInfo) {
+  async buildMenuForTextInput(menuInfo) {
     let menu = new Menu();
 
-    this.addSpellingItems(menu, menuInfo);
+    await this.addSpellingItems(menu, menuInfo);
     this.addSearchItems(menu, menuInfo);
 
     this.addCut(menu);
@@ -138,31 +136,35 @@ export default class ContextMenuBuilder {
    * Checks if the current text selection contains a single misspelled word and
    * if so, adds suggested spellings as individual menu items. 
    */   
-  addSpellingItems(menu, menuInfo) {
-    // XXX: This is all fucked
-    if (!(menuInfo.selection && this.info.currentLanguage))
+  async addSpellingItems(menu, menuInfo) {
+    let target = 'webContents' in this.windowOrWebView ? 
+      this.windowOrWebView.webContents : this.windowOrWebView;
+      
+    if (!menuInfo.selection) {
       return menu;
+    }
 
     // Ensure that we have a spell-checker for this language
-    let spellChecker = this.spellCheckers[this.info.currentLanguage];
-    if (!spellChecker)
+    if (!this.spellCheckHandler.currentSpellchecker) {
       return menu;
+    }
 
     // Ensure that the text selection is a single misspelled word
     let isSingleWord = !this.info.selection.match(/\s/);
-    let isMisspelled = spellChecker.isMisspelled(this.info.selection);
-    if (!isSingleWord || !isMisspelled)
+    if (!isSingleWord) {       
       return menu;
+    }
 
     // Ensure that we have valid corrections for that word
-    let corrections = spellChecker.getCorrectionsForMisspelling(this.info.selection);
-    if (!corrections || !corrections.length)
+    let corrections = await this.spellCheckHandler.getCorrectionsForMisspelling(menuInfo.selection);
+    if (!corrections || !corrections.length) {
       return menu;
+    }
 
     corrections.forEach((correction) => {
       let item = new MenuItem({
         label: correction,
-        click: () => this.webView.replaceMisspelling(correction)
+        click: () => target.replaceMisspelling(correction)
       });
     
       menu.append(item);
@@ -172,17 +174,22 @@ export default class ContextMenuBuilder {
 
     // Gate learning words based on OS support. At some point we can manage a
     // custom dictionary for Hunspell, but today is not that day
-    if (!DictionarySync.shouldUseHunspell()) {
+    if (process.platform === 'darwin') {
       let learnWord = new MenuItem({
         label: `Add to Dictionary`,
-        click: () => {
-          spellChecker.add(this.info.selection);
-
+        click: async () => {
           // NB: This is a gross fix to invalidate the spelling underline,
           // refer to https://github.com/tinyspeck/slack-winssb/issues/354
-          this.webView.replaceMisspelling(this.info.selection);
+          target.replaceMisspelling(this.info.selection);
+          
+          try {
+            await this.spellChecker.add(this.info.selection);
+          } catch (e) {
+            d(`Failed to add entry to dictionary: ${e.message}`);
+          }
         }
       });
+      
       menu.append(learnWord);
     }
 
@@ -193,8 +200,9 @@ export default class ContextMenuBuilder {
    * Adds search-related menu items.
    */
   addSearchItems(menu, menuInfo) {
-    if (!menuInfo.selection)
+    if (!menuInfo.selection) {
       return menu;
+    }
 
     let match = menuInfo.selection.match(/\w/);
     if (!match || match.length === 0) {
