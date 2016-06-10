@@ -1,7 +1,6 @@
 import path from 'path';
 import mkdirp from 'mkdirp';
 import {getURLForHunspellDictionary} from '@paulcbetts/spellchecker';
-import {requireTaskPool} from 'electron-remote';
 import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 import {Observable} from 'rx';
 
@@ -10,17 +9,22 @@ import {normalizeLanguageCode} from './utility';
 
 const d = require('debug')('electron-spellchecker:dictionary-sync');
 
+const app = process.type === 'renderer' ?
+  require('electron').remote.app :
+  require('electron').app;
+
 const {downloadFileOrUrl} = process.type === 'browser' ?
-  requireTaskPool(require.resolve('electron-remote/remote-ajax')) :
+  require('electron-remote').requireTaskPool(require.resolve('electron-remote/remote-ajax')) :
   require('electron-remote/remote-ajax');
 
 export default class DictionarySync {
-  constructor(cacheDir) {
-    this.cacheDir = cacheDir;
-    mkdirp.sync(cacheDir);
+  constructor(cacheDir=null) {
+    this.cacheDir = cacheDir || path.join(app.getPath('userData'), 'dictionaries');
+    mkdirp.sync(this.cacheDir);
   }
 
   async loadDictionaryForLanguage(langCode, cacheOnly=false) {
+    d(`Loading dictionary for language ${langCode}`);
     if (process.platform === 'darwin') return new Buffer([]);
 
     let lang = normalizeLanguageCode(langCode);
@@ -28,12 +32,14 @@ export default class DictionarySync {
 
     let fileExists = false;
     try {
-      if (await fs.exists(target)) {
+      if (fs.existsSync(target)) {
         fileExists = true;
-        return await fs.readFileSync(target);
+        d(`Returning local copy: ${target}`);
+        return await fs.readFile(target, {});
       }
     } catch (e) {
       d(`Failed to read file ${target}: ${e.message}`);
+      throw e;
     }
 
     if (fileExists) {
@@ -41,24 +47,19 @@ export default class DictionarySync {
         await fs.unlink(target);
       } catch (e) {
         d("Can't clear out file, bailing");
-        return null;
+        throw e;
       }
     }
 
-    try {
-      await downloadFileOrUrl(getURLForHunspellDictionary(lang), target);
-    } catch (e) {
-      d(`Failed to download file ${target}: ${e.message}`);
-      try { fs.unlinkSync(target); } catch(e) {}
-      return null;
-    }
+    let url = getURLForHunspellDictionary(lang);
+    d(`Actually downloading ${url}`);
+    await downloadFileOrUrl(url, target);
 
-    if (cacheOnly) return target;
-    return await fs.readFileSync(target);
+    if (cacheOnly) return target; return await fs.readFile(target, {});
   }
 
-  preloadDictionaries() {
-    return Observable.from(getInstalledKeyboardLanguages())
+  preloadDictionaries(languageList=null) {
+    return Observable.from(languageList || getInstalledKeyboardLanguages())
       .flatMap((x) => Observable.fromPromise(this.loadDictionaryForLanguage(x, true)))
       .reduce((acc,x) => { acc.push(x); return acc; }, [])
       .toPromise();
