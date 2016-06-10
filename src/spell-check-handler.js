@@ -7,7 +7,7 @@ import './custom-operators';
 import DictionarySync from './dictionary-sync';
 import {normalizeLanguageCode} from './utility';
 
-const d = require('debug')('electron-spellchecker:spell-check-handler');
+const d = require('debug-electron')('electron-spellchecker:spell-check-handler');
 let cld = null;
 let fallbackLocaleTable = null;
 let webFrame = (process.type === 'renderer' ?

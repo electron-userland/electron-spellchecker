@@ -1,6 +1,6 @@
 import {CompositeDisposable, Observable} from 'rx';
 
-const d = require('debug')('electron-spellchecker:context-menu-listener');
+const d = require('debug-electron')('electron-spellchecker:context-menu-listener');
 
 export default class ContextMenuListener {
   constructor(handler, contextMenuEvent=null) {

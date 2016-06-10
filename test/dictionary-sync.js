@@ -7,7 +7,7 @@ import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 
 import DictionarySync from '../src/dictionary-sync';
 
-const d = require('debug')('electron-spellchecker-test:dictionary-sync');
+const d = require('debug-electron')('electron-spellchecker-test:dictionary-sync');
 
 let testCount = 0;
 
