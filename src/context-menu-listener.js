@@ -63,6 +63,7 @@ export default class ContextMenuListener {
 
     // Check for standalone `img` tags
     if (tagName === 'img') {
+      menuInfo.type = 'img';
       menuInfo.src = e.target.src;
     }
 

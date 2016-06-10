@@ -45,6 +45,8 @@ export default class ContextMenuBuilder {
       return this.buildMenuForLink(info);
     case 'text':
       return this.buildMenuForText(info);
+    case 'img':
+      return this.buildMenuForImage(info);
     default:
       return this.buildDefaultMenu(info);
     }
@@ -98,6 +100,8 @@ export default class ContextMenuBuilder {
 
     menu.append(copyLink);
     menu.append(openLink);
+    
+    this.addSeparator(menu);
 
     this.addImageItems(menu, menuInfo);
     this.addInspectElement(menu, menuInfo);
@@ -117,6 +121,19 @@ export default class ContextMenuBuilder {
     this.addCopy(menu);
     this.addInspectElement(menu, menuInfo);
 
+    return menu;
+  }
+  
+  /**  
+   * Builds a menu applicable to an image.
+   *    
+   * @return {Menu}  The `Menu`   
+   */   
+  buildMenuForImage(menuInfo) {
+    let menu = new Menu();
+
+    this.addImageItems(menu, menuInfo);
+    this.addInspectElement(menu, menuInfo);
     return menu;
   }
 
@@ -233,12 +250,10 @@ export default class ContextMenuBuilder {
       return menu;
     }
 
-    this.addSeparator(menu);
-
     let copyImage = new MenuItem({
       label: 'Copy Image',
       click: () => this.convertImageToBase64(menuInfo.src,
-        (dataURL) => clipboard.writeImage(nativeImage.createFromDataUrl(dataURL)))
+        (dataURL) => clipboard.writeImage(nativeImage.createFromDataURL(dataURL)))
     });
   
     menu.append(copyImage);
