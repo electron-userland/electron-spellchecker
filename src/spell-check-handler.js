@@ -1,11 +1,15 @@
 import {CompositeDisposable, Disposable, Observable, Scheduler, SerialDisposable, Subject} from 'rx';
-import {Spellchecker} from '@paulcbetts/spellchecker';
 import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 import {spawn} from 'spawn-rx';
 
 import './custom-operators';
 import DictionarySync from './dictionary-sync';
 import {normalizeLanguageCode} from './utility';
+
+// NB: Even on Windows we use Hunspell
+process.env['SPELLCHECKER_PREFER_HUNSPELL'] = 1;
+const {Spellchecker} = require('@paulcbetts/spellchecker');
+
 
 const d = require('debug-electron')('electron-spellchecker:spell-check-handler');
 let cld = null;
@@ -37,9 +41,6 @@ const contractionMap = contractions.reduce((acc, word) => {
   acc[word.replace(/'.*/, '')] = true;
   return acc;
 }, {});
-
-// NB: Even on Windows we use Hunspell
-process.env['SPELLCHECKER_PREFER_HUNSPELL'] = 1;
 
 function fromEventCapture(element, name) {
   return Observable.create((subj) => {
