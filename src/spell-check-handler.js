@@ -225,7 +225,17 @@ export default class SpellCheckHandler {
     if (contractionMap[text.toLocaleLowerCase()]) return true;
 
     d(`Checking spelling of ${text}`);
-    return !this.currentSpellchecker.isMisspelled(text);
+    // NB: For some reason, Chromium's version of spellchecker often marks the
+    // first word as misspelled if it's capitalized. I'm not smart enough to fix
+    // this in node-spellchecker, so I'm going to fix it here instead.
+    let mistakes = this.currentSpellchecker.checkSpelling(text);
+    if (mistakes.length < 1) return true;
+
+    if (mistakes[0].start !== 0) {
+      return false;
+    }
+
+    return !this.currentSpellchecker.isMisspelled(text.toLocaleLowerCase());
   }
 
   detectLanguageForText(text) {
