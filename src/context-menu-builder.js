@@ -33,7 +33,7 @@ export default class ContextMenuBuilder {
       return this.buildMenuForLink(info);
     }
 
-    if (info.hasImageContents) {
+    if (info.hasImageContents && info.srcURL && info.srcURL.length > 1) {
       return this.buildMenuForImage(info);
     }
 
