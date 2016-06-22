@@ -8,7 +8,7 @@ export default class ContextMenuListener {
     this.disp = new CompositeDisposable();
 
     if (!contextMenuEvent) {
-      windowOrWebView = windowOrWebView || remote.getCurrentWindow();
+      windowOrWebView = windowOrWebView || remote.getCurrentWebContents();
       let target = 'webContents' in windowOrWebView ?
         windowOrWebView.webContents : windowOrWebView;
 
