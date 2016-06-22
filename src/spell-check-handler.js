@@ -225,7 +225,16 @@ export default class SpellCheckHandler {
     if (contractionMap[text.toLocaleLowerCase()]) return true;
 
     d(`Checking spelling of ${text}`);
-    return !this.currentSpellchecker.isMisspelled(text);
+
+    // NB: I'm not smart enough to fix this bug in Chromium's version of
+    // Hunspell so I'm going to fix it here instead. Chromium Hunspell for
+    // whatever reason marks the first word in a sentence as mispelled if it is
+    // capitalized.
+    let result = this.currentSpellchecker.checkSpelling(text);
+    if (result.length < 1) return true;
+    if (result[0].start !== 0) return false;
+
+    return !this.currentSpellchecker.isMisspelled(text.toLocaleLowerCase());
   }
 
   detectLanguageForText(text) {
