@@ -24,32 +24,24 @@ export default class ContextMenuBuilder {
   /**
    * Builds a context menu specific to the given info.
    *
-   * @param  {Object} info
-   * @param  {String} info.type       The type of menu to build
-   * @param  {String} info.selection  The selected text string
-   * @param  {String} info.id         The element ID
-   * @param  {Number} info.x          The x coordinate of the click location
-   * @param  {Number} info.y          The y coordinate of the click location
-   * @param  {String} info.href       The href for `a` elements
-   * @param  {String} info.src        The src for `img` elements
-   *
    * @return {Menu}      The newly created `Menu`
    */
   async buildMenuForElement(info) {
     d(`Got context menu event with args: ${JSON.stringify(info)}`);
 
-    switch (info.type) {
-    case 'textInput':
-      return await this.buildMenuForTextInput(info);
-    case 'link':
+    if (info.linkURL && info.linkURL.length > 0) {
       return this.buildMenuForLink(info);
-    case 'text':
-      return this.buildMenuForText(info);
-    case 'img':
-      return this.buildMenuForImage(info);
-    default:
-      return this.buildDefaultMenu(info);
     }
+
+    if (info.hasImageContents) {
+      return this.buildMenuForImage(info);
+    }
+
+    if (info.isEditable || (info.inputFieldType && info.inputFieldType !== 'none')) {
+      return await this.buildMenuForTextInput(info);
+    }
+
+    return this.buildMenuForText(info);
   }
 
   /**
@@ -63,9 +55,9 @@ export default class ContextMenuBuilder {
     await this.addSpellingItems(menu, menuInfo);
     this.addSearchItems(menu, menuInfo);
 
-    this.addCut(menu);
-    this.addCopy(menu);
-    this.addPaste(menu);
+    this.addCut(menu, menuInfo);
+    this.addCopy(menu, menuInfo);
+    this.addPaste(menu, menuInfo);
     this.addInspectElement(menu, menuInfo);
 
     return menu;
@@ -78,23 +70,22 @@ export default class ContextMenuBuilder {
    */
   buildMenuForLink(menuInfo) {
     let menu = new Menu();
-    let isEmailAddress = menuInfo.href.startsWith('mailto:');
+    let isEmailAddress = menuInfo.linkURL.startsWith('mailto:');
 
     let copyLink = new MenuItem({
       label: isEmailAddress ? 'Copy Email Address' : 'Copy Link',
       click: () => {
         // Omit the mailto: portion of the link; we just want the address
         clipboard.writeText(isEmailAddress ?
-          menuInfo.href.replace(/^mailto:/i, '') :
-          menuInfo.href);
+          menuInfo.linkText : menuInfo.linkURL);
       }
     });
 
     let openLink = new MenuItem({
       label: 'Open Link',
       click: () => {
-        d(`Navigating to: ${menuInfo.href}`);
-        shell.openExternal(menuInfo.href);
+        d(`Navigating to: ${menuInfo.linkURL}`);
+        shell.openExternal(menuInfo.linkURL);
       }
     });
 
@@ -118,7 +109,7 @@ export default class ContextMenuBuilder {
     let menu = new Menu();
 
     this.addSearchItems(menu, menuInfo);
-    this.addCopy(menu);
+    this.addCopy(menu, menuInfo);
     this.addInspectElement(menu, menuInfo);
 
     return menu;
@@ -138,18 +129,6 @@ export default class ContextMenuBuilder {
   }
 
   /**
-   * Builds an empty menu or one with the 'Inspect Element' item.
-   *
-   * @return {Menu}  The `Menu`
-   */
-  buildDefaultMenu(menuInfo) {
-    // NB: Mac handles empty menus properly, ignoring the event entirely.
-    // Windows will render a dummy (empty) item.
-    let emptyMenu = process.platform === 'darwin' ? new Menu() : null;
-    return this.debugMode ? this.addInspectElement(new Menu(), menuInfo, false) : emptyMenu;
-  }
-
-  /**
    * Checks if the current text selection contains a single misspelled word and
    * if so, adds suggested spellings as individual menu items.
    */
@@ -157,7 +136,7 @@ export default class ContextMenuBuilder {
     let target = 'webContents' in this.windowOrWebView ?
       this.windowOrWebView.webContents : this.windowOrWebView;
 
-    if (!menuInfo.selection) {
+    if (!menuInfo.misspelledWord || menuInfo.misspelledWord.length < 1) {
       return menu;
     }
 
@@ -166,14 +145,8 @@ export default class ContextMenuBuilder {
       return menu;
     }
 
-    // Ensure that the text selection is a single misspelled word
-    let isSingleWord = !menuInfo.selection.match(/\s/);
-    if (!isSingleWord) {
-      return menu;
-    }
-
     // Ensure that we have valid corrections for that word
-    let corrections = await this.spellCheckHandler.getCorrectionsForMisspelling(menuInfo.selection);
+    let corrections = await this.spellCheckHandler.getCorrectionsForMisspelling(menuInfo.misspelledWord);
     if (!corrections || !corrections.length) {
       return menu;
     }
@@ -200,7 +173,7 @@ export default class ContextMenuBuilder {
           target.replaceMisspelling(menuInfo.selection);
 
           try {
-            await this.spellChecker.add(menuInfo.selection);
+            await this.spellChecker.add(menuInfo.misspelledWord);
           } catch (e) {
             d(`Failed to add entry to dictionary: ${e.message}`);
           }
@@ -217,11 +190,11 @@ export default class ContextMenuBuilder {
    * Adds search-related menu items.
    */
   addSearchItems(menu, menuInfo) {
-    if (!menuInfo.selection) {
+    if (!menuInfo.selectionText || menuInfo.selectionText.length < 1) {
       return menu;
     }
 
-    let match = menuInfo.selection.match(/\w/);
+    let match = menuInfo.selectionText.match(/\w/);
     if (!match || match.length === 0) {
       return menu;
     }
@@ -229,7 +202,7 @@ export default class ContextMenuBuilder {
     let search = new MenuItem({
       label: 'Search with Google',
       click: () => {
-        let url = `https://www.google.com/#q=${encodeURIComponent(menuInfo.selection)}`;
+        let url = `https://www.google.com/#q=${encodeURIComponent(menuInfo.selectionText)}`;
 
         d(`Searching Google using ${url}`);
         shell.openExternal(url);
@@ -246,13 +219,13 @@ export default class ContextMenuBuilder {
    * Adds "Copy Image" and "Copy Image URL" items when `src` is valid.
    */
   addImageItems(menu, menuInfo) {
-    if (!menuInfo.src || menuInfo.src.length === 0) {
+    if (!menuInfo.srcURL || menuInfo.srcURL.length === 0) {
       return menu;
     }
 
     let copyImage = new MenuItem({
       label: 'Copy Image',
-      click: () => this.convertImageToBase64(menuInfo.src,
+      click: () => this.convertImageToBase64(menuInfo.srcURL,
         (dataURL) => clipboard.writeImage(nativeImage.createFromDataURL(dataURL)))
     });
 
@@ -260,7 +233,7 @@ export default class ContextMenuBuilder {
 
     let copyImageUrl = new MenuItem({
       label: 'Copy Image URL',
-      click: () => clipboard.writeText(menuInfo.src)
+      click: () => clipboard.writeText(menuInfo.srcURL)
     });
 
     menu.append(copyImageUrl);
@@ -270,13 +243,14 @@ export default class ContextMenuBuilder {
   /**
    * Adds the Cut menu item
    */
-  addCut(menu) {
+  addCut(menu, menuInfo) {
     let target = 'webContents' in this.windowOrWebView ?
       this.windowOrWebView.webContents : this.windowOrWebView;
 
     menu.append(new MenuItem({
       label: 'Cut',
       accelerator: 'CommandOrControl+X',
+      enabled: menuInfo.editFlags.canCut,
       click: () => target.cut()
     }));
 
@@ -286,13 +260,14 @@ export default class ContextMenuBuilder {
   /**
    * Adds the Copy menu item.
    */
-  addCopy(menu) {
+  addCopy(menu, menuInfo) {
     let target = 'webContents' in this.windowOrWebView ?
       this.windowOrWebView.webContents : this.windowOrWebView;
 
     menu.append(new MenuItem({
       label: 'Copy',
       accelerator: 'CommandOrControl+C',
+      enabled: menuInfo.editFlags.canCopy,
       click: () => target.copy()
     }));
 
@@ -302,13 +277,14 @@ export default class ContextMenuBuilder {
   /**
    * Adds the Paste menu item.
    */
-  addPaste(menu) {
+  addPaste(menu, menuInfo) {
     let target = 'webContents' in this.windowOrWebView ?
       this.windowOrWebView.webContents : this.windowOrWebView;
 
     menu.append(new MenuItem({
       label: 'Paste',
       accelerator: 'CommandOrControl+V',
+      enabled: menuInfo.editFlags.canPaste,
       click: () => target.paste()
     }));
 
