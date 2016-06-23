@@ -64,6 +64,8 @@ export default class SpellCheckHandler {
     this.currentSpellchecker = null;
     this.currentSpellcheckerLanguage = null;
     this.currentSpellcheckerChanged = new Subject();
+    this.spellingErrorOccurred = new Subject();
+    
     this.localStorage = localStorage || window.localStorage;
     this.scheduler = scheduler || Scheduler.default;
     this.shouldAutoCorrect = true;
@@ -124,42 +126,39 @@ export default class SpellCheckHandler {
       return Disposable.empty;
     }
 
-    let input = inputText || fromEventCapture(document.body, 'input')
+    let input = inputText || (fromEventCapture(document.body, 'input')
       .flatMap((e) => {
         if (!e.target || !e.target.value) return Observable.empty();
-        return Observable.of(e.target.value);
+        return Observable.just(e.target.value);
+      }));
+      
+    let disp = new CompositeDisposable();
+      
+    let lastInputText = '';
+    disp.add(input.subscribe((x) => lastInputText = x));
+    
+    let initialInputText = input
+      .guaranteedThrottle(250, this.scheduler)
+      .takeUntil(this.currentSpellcheckerChanged);
+
+    if (this.currentSpellcheckerLanguage) {
+      initialInputText = Observable.empty();
+    }
+
+    let contentToCheck = Observable.merge(this.spellingErrorOccurred, initialInputText)
+      .observeOn(this.scheduler)
+      .flatMap(() => {
+        if (lastInputText.length < 8) return Observable.empty();
+        return Observable.just(lastInputText);
       });
-
-    // Here's how this works - basically the idea is, we want a notification
-    // for when someone *starts* typing, but only at the beginning of a series
-    // of keystrokes, we don't want to hear anything while they're typing, and
-    // we don't want to hear about it when they're not typing at all, so we're
-    // only calling getCurrentKeyboardLanguage when it makes sense.
-    //
-    // To do that, we're going to listen on event, then map that to an Observable
-    // that returns a value then never ends. But! We're gonna *also* terminate that
-    // Observable once the user stops typing (the takeUntil). Then, we're gonna
-    // keep doing that forever (effectively waiting for the next inputEvent). The
-    // startWith(true) makes sure that we have an initial value on startup, then we
-    // map that
-    let userStartedTyping = input
-      .concatMap(() => Observable.return(true).concat(Observable.never()))
-      .takeUntil(input.guaranteedThrottle(750, this.scheduler))
-      .repeat()
-      .startWith(true);
-
-    let languageDetectionMatches = userStartedTyping
-      .do(() => d('User started typing'))
-      .flatMap(() => input.sample(2000, this.scheduler))
+      
+    let languageDetectionMatches = contentToCheck
       .flatMap((text) => {
         d(`Attempting detection of ${text}`);
         return Observable.fromPromise(this.detectLanguageForText(text))
           .catch(() => Observable.empty());
-      })
-      .take(1)
-      .repeat();
+      });
 
-    let disp = new CompositeDisposable();
     disp.add(languageDetectionMatches
       .flatMap(async (langWithoutLocale) => {
         d(`Auto-detected language as ${langWithoutLocale}`);
@@ -232,9 +231,17 @@ export default class SpellCheckHandler {
     // capitalized.
     let result = this.currentSpellchecker.checkSpelling(text);
     if (result.length < 1) return true;
-    if (result[0].start !== 0) return false;
+    if (result[0].start !== 0) {
+      this.spellingErrorOccurred.onNext(text);
+      return false;
+    }
 
-    return !this.currentSpellchecker.isMisspelled(text.toLocaleLowerCase());
+    let ret = this.currentSpellchecker.isMisspelled(text.toLocaleLowerCase());
+    if (ret) {
+      this.spellingErrorOccurred.onNext(text);
+    }
+    
+    return !ret;
   }
 
   detectLanguageForText(text) {
