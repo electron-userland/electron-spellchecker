@@ -64,6 +64,8 @@ export default class SpellCheckHandler {
     this.currentSpellchecker = null;
     this.currentSpellcheckerLanguage = null;
     this.currentSpellcheckerChanged = new Subject();
+    this.spellingErrorOccurred = new Subject();
+
     this.localStorage = localStorage || window.localStorage;
     this.scheduler = scheduler || Scheduler.default;
     this.shouldAutoCorrect = true;
@@ -232,9 +234,17 @@ export default class SpellCheckHandler {
     // capitalized.
     let result = this.currentSpellchecker.checkSpelling(text);
     if (result.length < 1) return true;
-    if (result[0].start !== 0) return false;
+    if (result[0].start !== 0) {
+      this.spellingErrorOccurred.onNext(text);
+      return false;
+    }
 
-    return !this.currentSpellchecker.isMisspelled(text.toLocaleLowerCase());
+    let ret = this.currentSpellchecker.isMisspelled(text.toLocaleLowerCase());
+    if (ret) {
+      this.spellingErrorOccurred.onNext(text);
+    }
+
+    return !ret;
   }
 
   detectLanguageForText(text) {
