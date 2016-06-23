@@ -129,7 +129,7 @@ export default class SpellCheckHandler {
     let input = inputText || fromEventCapture(document.body, 'input')
       .flatMap((e) => {
         if (!e.target || !e.target.value) return Observable.empty();
-        return Observable.of(e.target.value);
+        return Observable.just(e.target.value);
       });
       
     let disp = new CompositeDisposable();
@@ -137,7 +137,15 @@ export default class SpellCheckHandler {
     let lastInputText = '';
     disp.add(input.subscribe((x) => lastInputText = x));
     
-    let contentToCheck = this.spellingErrorOccurred
+    let initialInputText = input
+      .guaranteedThrottle(250)
+      .takeUntil(this.currentSpellcheckerChanged);
+
+    if (this.currentSpellcheckerLanguage) {
+      initialInputText = Observable.empty();
+    }
+
+    let contentToCheck = Observable.merge(this.spellingErrorOccurred, initialInputText)
       .observeOn(this.scheduler)
       .flatMap(() => {
         if (lastInputText.length < 8) return Observable.empty();
