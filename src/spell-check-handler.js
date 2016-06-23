@@ -126,11 +126,11 @@ export default class SpellCheckHandler {
       return Disposable.empty;
     }
 
-    let input = inputText || fromEventCapture(document.body, 'input')
+    let input = inputText || (fromEventCapture(document.body, 'input')
       .flatMap((e) => {
         if (!e.target || !e.target.value) return Observable.empty();
         return Observable.just(e.target.value);
-      });
+      }));
       
     let disp = new CompositeDisposable();
       
@@ -138,7 +138,7 @@ export default class SpellCheckHandler {
     disp.add(input.subscribe((x) => lastInputText = x));
     
     let initialInputText = input
-      .guaranteedThrottle(250)
+      .guaranteedThrottle(250, this.scheduler)
       .takeUntil(this.currentSpellcheckerChanged);
 
     if (this.currentSpellcheckerLanguage) {
