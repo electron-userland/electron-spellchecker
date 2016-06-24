@@ -7,15 +7,14 @@ import {Observable} from 'rx';
 import {fs} from './promisify';
 import {normalizeLanguageCode} from './utility';
 
-const d = require('debug')('electron-spellchecker:dictionary-sync');
+const d = require('debug-electron')('electron-spellchecker:dictionary-sync');
 
 const app = process.type === 'renderer' ?
   require('electron').remote.app :
   require('electron').app;
 
-const {downloadFileOrUrl} = process.type === 'browser' ?
-  require('electron-remote').requireTaskPool(require.resolve('electron-remote/remote-ajax')) :
-  require('electron-remote/remote-ajax');
+const {downloadFileOrUrl} =
+  require('electron-remote').requireTaskPool(require.resolve('electron-remote/remote-ajax'));
 
 export default class DictionarySync {
   constructor(cacheDir=null) {

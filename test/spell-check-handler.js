@@ -6,7 +6,7 @@ import {ReactiveTest, TestScheduler} from 'rx';
 import DictionarySync from '../src/dictionary-sync';
 import SpellCheckHandler from '../src/spell-check-handler';
 
-const d = require('debug')('electron-spellchecker-test:spell-check-handler');
+const d = require('debug-electron')('electron-spellchecker-test:spell-check-handler');
 
 let testCount = 0;
 
@@ -101,59 +101,6 @@ describe('The Spell Check Handler Class', function() {
       expect(this.fixture.currentSpellcheckerLanguage).to.equal('en-US');
     });
     
-    it('shouldnt call cld over and over while users are typing', async function() {
-      let scheduler = new TestScheduler();
-      let input = scheduler.createHotObservable(
-        ReactiveTest.onNext(10, 'T'),
-        ReactiveTest.onNext(15, 'Th'),
-        ReactiveTest.onNext(20, 'Thi'),
-        ReactiveTest.onNext(25, 'This'),
-        ReactiveTest.onNext(150, ''),
-        ReactiveTest.onNext(160, 'This is a test of a long english sentence')
-      );
-
-      this.fixture.scheduler = scheduler;
-      this.fixture.attachToInput(input);
-      
-      let langDetectCount = 0;
-      this.fixture.detectLanguageForText = function(text) {
-        langDetectCount++;
-        return (text.length > 10) ? Promise.resolve('en') : Promise.reject(new Error("Couldn't detect"));
-      };
-      
-      let currentLanguage = null;
-      this.fixture.switchLanguage = function(lang) {
-        currentLanguage = lang;
-        return Promise.resolve(true);
-      };
-
-      expect(this.fixture.currentSpellcheckerLanguage).not.to.be.ok;
-      
-      d(`Advancing to 20`);
-      scheduler.advanceTo(10);
-      expect(langDetectCount).to.equal(0);
-      scheduler.advanceTo(15);
-      expect(langDetectCount).to.equal(0);
-      scheduler.advanceTo(20);
-      expect(langDetectCount).to.equal(0);
-      
-      d(`Advancing to 150`);
-      scheduler.advanceTo(150);
-      expect(langDetectCount).to.equal(0);
-      scheduler.advanceTo(160);
-      expect(langDetectCount).to.equal(0);
-      
-      d(`Advancing to +20sec`);
-      scheduler.advanceTo(20 * 1000);
-          
-      // NB: Because we still use Promises that _always_ schedule, we have to spin
-      // the event loop :-/
-      await new Promise((req) => setTimeout(req, 20));
-      
-      expect(langDetectCount).to.equal(2);
-      expect(currentLanguage).to.equal('en-US');
-    });
-    
     it('should switch languages if users type different text', async function() {
       this.timeout(15 * 1000);
 
@@ -178,6 +125,11 @@ describe('The Spell Check Handler Class', function() {
       scheduler.advanceTo(20*1000);
       await new Promise((req) => setTimeout(req, 50));
       expect(this.fixture.currentSpellcheckerLanguage).to.equal('en-US');    
+            
+      d('Advancing to +50s, faking up some spelling mistakes');
+      scheduler.advanceTo(50*1000);
+      this.fixture.spellingErrorOccurred.onNext('ist');
+      this.fixture.spellingErrorOccurred.onNext('eine');
       
       d('Advancing to +60s');
       scheduler.advanceTo(60*1000);
