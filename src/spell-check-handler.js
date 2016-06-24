@@ -6,8 +6,11 @@ import './custom-operators';
 import DictionarySync from './dictionary-sync';
 import {normalizeLanguageCode} from './utility';
 
-// NB: Even on Windows we use Hunspell
-process.env['SPELLCHECKER_PREFER_HUNSPELL'] = 1;
+// NB: On Windows we still use Hunspell
+if (process.platform === 'win32') {
+  process.env['SPELLCHECKER_PREFER_HUNSPELL'] = 1;
+}
+
 const {Spellchecker} = require('@paulcbetts/spellchecker');
 
 
