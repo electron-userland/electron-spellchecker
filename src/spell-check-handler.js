@@ -68,7 +68,7 @@ export default class SpellCheckHandler {
     this.currentSpellcheckerLanguage = null;
     this.currentSpellcheckerChanged = new Subject();
     this.spellingErrorOccurred = new Subject();
-    
+
     this.localStorage = localStorage || window.localStorage;
     this.scheduler = scheduler || Scheduler.default;
     this.shouldAutoCorrect = true;
@@ -134,12 +134,12 @@ export default class SpellCheckHandler {
         if (!e.target || !e.target.value) return Observable.empty();
         return Observable.just(e.target.value);
       }));
-      
+
     let disp = new CompositeDisposable();
-      
+
     let lastInputText = '';
     disp.add(input.subscribe((x) => lastInputText = x));
-    
+
     let initialInputText = input
       .guaranteedThrottle(250, this.scheduler)
       .takeUntil(this.currentSpellcheckerChanged);
@@ -154,7 +154,7 @@ export default class SpellCheckHandler {
         if (lastInputText.length < 8) return Observable.empty();
         return Observable.just(lastInputText);
       });
-      
+
     let languageDetectionMatches = contentToCheck
       .flatMap((text) => {
         d(`Attempting detection of ${text}`);
@@ -243,7 +243,7 @@ export default class SpellCheckHandler {
     if (ret) {
       this.spellingErrorOccurred.onNext(text);
     }
-    
+
     return !ret;
   }
 
