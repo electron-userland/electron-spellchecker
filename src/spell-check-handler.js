@@ -201,6 +201,8 @@ export default class SpellCheckHandler {
     let ret = new CompositeDisposable();
     let hasUnloaded = false;
 
+    if (process.platform === 'darwin') return Disposable.empty;
+
     ret.add(Observable.fromEvent(window, 'blur').subscribe(() => {
       d(`Unloading spellchecker`);
       this.currentSpellchecker = null;
@@ -316,7 +318,7 @@ export default class SpellCheckHandler {
 
       // NB: OS X will return lists that are half just a language, half
       // language + locale, like ['en', 'pt_BR', 'ko']
-      localeList = this.spellchecker.getAvailableDictionaries()
+      localeList = this.currentSpellchecker.getAvailableDictionaries()
         .map((x => {
           if (x.length === 2) return fallbackLocaleTable[x];
           return normalizeLanguageCode(x);
