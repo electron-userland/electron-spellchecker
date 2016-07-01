@@ -260,7 +260,7 @@ export default class SpellCheckHandler {
 
   async getLikelyLocaleForLanguage(language) {
     let lang = language.toLowerCase();
-    if (!this.likelyLocaleTable) this.likelyLocaleTable = await SpellCheckHandler.buildLikelyLocaleTable();
+    if (!this.likelyLocaleTable) this.likelyLocaleTable = await this.buildLikelyLocaleTable();
 
     if (this.likelyLocaleTable[lang]) return this.likelyLocaleTable[lang];
     this.fallbackLocaleTable = this.fallbackLocaleTable || require('./fallback-locales');
@@ -287,7 +287,7 @@ export default class SpellCheckHandler {
     this.currentSpellchecker.add(text);
   }
 
-  static async buildLikelyLocaleTable() {
+  async buildLikelyLocaleTable() {
     let localeList = [];
 
     if (process.platform === 'linux') {
