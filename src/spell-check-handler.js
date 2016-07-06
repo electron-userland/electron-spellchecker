@@ -6,13 +6,7 @@ import './custom-operators';
 import DictionarySync from './dictionary-sync';
 import {normalizeLanguageCode} from './utility';
 
-// NB: On Windows we still use Hunspell
-if (process.platform === 'win32') {
-  process.env['SPELLCHECKER_PREFER_HUNSPELL'] = 1;
-}
-
-const {Spellchecker} = require('@paulcbetts/spellchecker');
-
+import {Spellchecker} from './node-spellchecker';
 
 const d = require('debug-electron')('electron-spellchecker:spell-check-handler');
 let cld = null;

@@ -1,6 +1,6 @@
 import path from 'path';
 import mkdirp from 'mkdirp';
-import {getURLForHunspellDictionary} from '@paulcbetts/spellchecker';
+import {getURLForHunspellDictionary} from './node-spellchecker';
 import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 import {Observable} from 'rx';
 
