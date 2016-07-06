@@ -6,8 +6,11 @@ import './custom-operators';
 import DictionarySync from './dictionary-sync';
 import {normalizeLanguageCode} from './utility';
 
-// NB: Even on Windows we use Hunspell
-process.env['SPELLCHECKER_PREFER_HUNSPELL'] = 1;
+// NB: On Windows we still use Hunspell
+if (process.platform === 'win32') {
+  process.env['SPELLCHECKER_PREFER_HUNSPELL'] = 1;
+}
+
 const {Spellchecker} = require('@paulcbetts/spellchecker');
 
 
@@ -64,6 +67,8 @@ export default class SpellCheckHandler {
     this.currentSpellchecker = null;
     this.currentSpellcheckerLanguage = null;
     this.currentSpellcheckerChanged = new Subject();
+    this.spellingErrorOccurred = new Subject();
+
     this.localStorage = localStorage || window.localStorage;
     this.scheduler = scheduler || Scheduler.default;
     this.shouldAutoCorrect = true;
@@ -124,42 +129,39 @@ export default class SpellCheckHandler {
       return Disposable.empty;
     }
 
-    let input = inputText || fromEventCapture(document.body, 'input')
+    let input = inputText || (fromEventCapture(document.body, 'input')
       .flatMap((e) => {
         if (!e.target || !e.target.value) return Observable.empty();
-        return Observable.of(e.target.value);
+        return Observable.just(e.target.value);
+      }));
+
+    let disp = new CompositeDisposable();
+
+    let lastInputText = '';
+    disp.add(input.subscribe((x) => lastInputText = x));
+
+    let initialInputText = input
+      .guaranteedThrottle(250, this.scheduler)
+      .takeUntil(this.currentSpellcheckerChanged);
+
+    if (this.currentSpellcheckerLanguage) {
+      initialInputText = Observable.empty();
+    }
+
+    let contentToCheck = Observable.merge(this.spellingErrorOccurred, initialInputText)
+      .observeOn(this.scheduler)
+      .flatMap(() => {
+        if (lastInputText.length < 8) return Observable.empty();
+        return Observable.just(lastInputText);
       });
 
-    // Here's how this works - basically the idea is, we want a notification
-    // for when someone *starts* typing, but only at the beginning of a series
-    // of keystrokes, we don't want to hear anything while they're typing, and
-    // we don't want to hear about it when they're not typing at all, so we're
-    // only calling getCurrentKeyboardLanguage when it makes sense.
-    //
-    // To do that, we're going to listen on event, then map that to an Observable
-    // that returns a value then never ends. But! We're gonna *also* terminate that
-    // Observable once the user stops typing (the takeUntil). Then, we're gonna
-    // keep doing that forever (effectively waiting for the next inputEvent). The
-    // startWith(true) makes sure that we have an initial value on startup, then we
-    // map that
-    let userStartedTyping = input
-      .concatMap(() => Observable.return(true).concat(Observable.never()))
-      .takeUntil(input.guaranteedThrottle(750, this.scheduler))
-      .repeat()
-      .startWith(true);
-
-    let languageDetectionMatches = userStartedTyping
-      .do(() => d('User started typing'))
-      .flatMap(() => input.sample(2000, this.scheduler))
+    let languageDetectionMatches = contentToCheck
       .flatMap((text) => {
         d(`Attempting detection of ${text}`);
         return Observable.fromPromise(this.detectLanguageForText(text))
           .catch(() => Observable.empty());
-      })
-      .take(1)
-      .repeat();
+      });
 
-    let disp = new CompositeDisposable();
     disp.add(languageDetectionMatches
       .flatMap(async (langWithoutLocale) => {
         d(`Auto-detected language as ${langWithoutLocale}`);
@@ -199,6 +201,8 @@ export default class SpellCheckHandler {
     let ret = new CompositeDisposable();
     let hasUnloaded = false;
 
+    if (process.platform === 'darwin') return Disposable.empty;
+
     ret.add(Observable.fromEvent(window, 'blur').subscribe(() => {
       d(`Unloading spellchecker`);
       this.currentSpellchecker = null;
@@ -225,17 +229,24 @@ export default class SpellCheckHandler {
     if (contractionMap[text.toLocaleLowerCase()]) return true;
 
     d(`Checking spelling of ${text}`);
-    // NB: For some reason, Chromium's version of spellchecker often marks the
-    // first word as misspelled if it's capitalized. I'm not smart enough to fix
-    // this in node-spellchecker, so I'm going to fix it here instead.
-    let mistakes = this.currentSpellchecker.checkSpelling(text);
-    if (mistakes.length < 1) return true;
 
-    if (mistakes[0].start !== 0) {
+    // NB: I'm not smart enough to fix this bug in Chromium's version of
+    // Hunspell so I'm going to fix it here instead. Chromium Hunspell for
+    // whatever reason marks the first word in a sentence as mispelled if it is
+    // capitalized.
+    let result = this.currentSpellchecker.checkSpelling(text);
+    if (result.length < 1) return true;
+    if (result[0].start !== 0) {
+      this.spellingErrorOccurred.onNext(text);
       return false;
     }
 
-    return !this.currentSpellchecker.isMisspelled(text.toLocaleLowerCase());
+    let ret = this.currentSpellchecker.isMisspelled(text.toLocaleLowerCase());
+    if (ret) {
+      this.spellingErrorOccurred.onNext(text);
+    }
+
+    return !ret;
   }
 
   detectLanguageForText(text) {
@@ -251,7 +262,7 @@ export default class SpellCheckHandler {
 
   async getLikelyLocaleForLanguage(language) {
     let lang = language.toLowerCase();
-    if (!this.likelyLocaleTable) this.likelyLocaleTable = await SpellCheckHandler.buildLikelyLocaleTable();
+    if (!this.likelyLocaleTable) this.likelyLocaleTable = await this.buildLikelyLocaleTable();
 
     if (this.likelyLocaleTable[lang]) return this.likelyLocaleTable[lang];
     this.fallbackLocaleTable = this.fallbackLocaleTable || require('./fallback-locales');
@@ -278,7 +289,7 @@ export default class SpellCheckHandler {
     this.currentSpellchecker.add(text);
   }
 
-  static async buildLikelyLocaleTable() {
+  async buildLikelyLocaleTable() {
     let localeList = [];
 
     if (process.platform === 'linux') {
@@ -307,7 +318,7 @@ export default class SpellCheckHandler {
 
       // NB: OS X will return lists that are half just a language, half
       // language + locale, like ['en', 'pt_BR', 'ko']
-      localeList = this.spellchecker.getAvailableDictionaries()
+      localeList = this.currentSpellchecker.getAvailableDictionaries()
         .map((x => {
           if (x.length === 2) return fallbackLocaleTable[x];
           return normalizeLanguageCode(x);
