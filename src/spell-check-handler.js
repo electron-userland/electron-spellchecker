@@ -8,7 +8,8 @@ import {normalizeLanguageCode} from './utility';
 
 import {Spellchecker} from './node-spellchecker';
 
-const d = require('debug-electron')('electron-spellchecker:spell-check-handler');
+let d = require('debug-electron')('electron-spellchecker:spell-check-handler');
+
 let cld = null;
 let fallbackLocaleTable = null;
 let webFrame = (process.type === 'renderer' ?
@@ -85,7 +86,7 @@ export default class SpellCheckHandler {
   }
   
   static setLogger(fn) {
-    d.log = fn;
+    d = fn;
   }
 
   async loadDictionaryForLanguageWithAlternatives(langCode, cacheOnly=false) {

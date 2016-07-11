@@ -7,7 +7,7 @@ import {Observable} from 'rx';
 import {fs} from './promisify';
 import {normalizeLanguageCode} from './utility';
 
-const d = require('debug-electron')('electron-spellchecker:dictionary-sync');
+let d = require('debug-electron')('electron-spellchecker:dictionary-sync');
 
 const app = process.type === 'renderer' ?
   require('electron').remote.app :
@@ -23,7 +23,7 @@ export default class DictionarySync {
   }
   
   static setLogger(fn) {
-    d.log = fn;
+    d = fn;
   }
 
   async loadDictionaryForLanguage(langCode, cacheOnly=false) {

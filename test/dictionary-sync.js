@@ -59,32 +59,6 @@ describe('The Dictionary Sync class', function() {
       fs.writeFileSync('./wtfisthisfile', ret);
       throw new Error("Didn't fail!");    
     });
-    
-    it('should only have valid languages in the fallback locale list', async function() {
-      return;
-      /* NB: This test isn't super important, but it's interesting code so I left
-       * it
-      this.timeout(10 * 60 * 1000);
-      let failedLangs = [];
-      let downloadedLangs = 0;
-
-      for (let lang of Object.values(fallbackLocales)) {
-        try {
-          await this.fixture.loadDictionaryForLanguage(lang);
-          downloadedLangs++;
-        } catch (e) {
-          failedLangs.push(lang);
-        }
-      }
-
-      if (failedLangs.length > 0) {
-        console.log(`FAILED LANGUAGES: ${JSON.stringify(failedLangs)}`);
-        throw new Error("Failed languages detected");
-      }
-
-      console.log(`Downloaded ${downloadedLangs} languages`);
-      */
-    });
   });
 
   describe('preloadDictionaries', function() {

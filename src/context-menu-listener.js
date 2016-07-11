@@ -1,7 +1,7 @@
 import {remote} from 'electron';
 import {CompositeDisposable, Observable} from 'rx';
 
-const d = require('debug-electron')('electron-spellchecker:context-menu-listener');
+let d = require('debug-electron')('electron-spellchecker:context-menu-listener');
 
 export default class ContextMenuListener {
   constructor(handler, windowOrWebView=null, contextMenuEvent=null) {
@@ -12,7 +12,8 @@ export default class ContextMenuListener {
       let target = 'webContents' in windowOrWebView ?
         windowOrWebView.webContents : windowOrWebView;
 
-      contextMenuEvent = Observable.fromEvent(target, 'context-menu', (e,p) => { e.preventDefault(); return p; })
+      contextMenuEvent = Observable.fromEvent(target, 'context-menu',
+          (e,p) => { e.preventDefault(); return p; })
         .map((x) => JSON.parse(JSON.stringify(x)));
     }
 
@@ -20,7 +21,7 @@ export default class ContextMenuListener {
   }
   
   static setLogger(fn) {
-    d.log = fn;
+    d = fn;
   }
 
   dispose() {

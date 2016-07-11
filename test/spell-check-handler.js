@@ -61,6 +61,23 @@ describe('The Spell Check Handler Class', function() {
       expect(this.fixture.currentSpellchecker.isMisspelled('bucket')).to.be.ok;
       expect(this.fixture.currentSpellchecker.isMisspelled('Eimer')).not.to.be.ok;
     });
+
+    it.skip('should log some stuff', async function() {
+      // NB: This test is skipped because it will wreck the logger for the other
+      // tests, but it's still a good test!
+      let result = [];
+      SpellCheckHandler.setLogger((...args) => result.push(...args));
+
+      expect(result.length).to.equal(0);
+      await this.fixture.switchLanguage('de-DE');
+
+      let currentLength = result.length;
+      expect(result.length > 0).to.be.ok;
+
+      await this.fixture.switchLanguage('en-US');
+      expect(result.length > 0).to.be.ok;
+      expect(result.length > currentLength).to.be.ok;
+    });
   });
   
   describe('the loadDictionaryForLanguageWithAlternatives method', function() {

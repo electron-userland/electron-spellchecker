@@ -2,7 +2,7 @@ import {clipboard, nativeImage, remote, shell} from 'electron';
 
 const {Menu, MenuItem} = remote;
 
-const d = require('debug-electron')('electron-spellchecker:context-menu-builder');
+let d = require('debug-electron')('electron-spellchecker:context-menu-builder');
 
 export default class ContextMenuBuilder {
   constructor(spellCheckHandler, windowOrWebView=null, debugMode=false) {
@@ -13,7 +13,7 @@ export default class ContextMenuBuilder {
   }
   
   static setLogger(fn) {
-    d.log = fn;
+    d = fn;
   }
 
   async showPopupMenu(contextInfo) {
