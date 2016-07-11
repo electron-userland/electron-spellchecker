@@ -62,6 +62,27 @@ describe('The Spell Check Handler Class', function() {
       expect(this.fixture.currentSpellchecker.isMisspelled('Eimer')).not.to.be.ok;
     });
   });
+  
+  describe('the loadDictionaryForLanguageWithAlternatives method', function() {
+    this.timeout(30*1000);
+    
+    it('should load a simple example', async function() {
+      this.fixture.likelyLocaleTable = { 'en': 'en-US' };
+      let result = await this.fixture.loadDictionaryForLanguageWithAlternatives('en-US');
+      
+      expect(result.language).to.equal('en-US');
+    });
+    
+        
+    it('should load a fallback example', async function() {
+      // NB: Google doesn't have an es-MX dictionary
+      this.fixture.likelyLocaleTable = { 'es': 'es-ES' };
+      let result = await this.fixture.loadDictionaryForLanguageWithAlternatives('es-MX');
+      
+      expect(result.language).to.equal('es-ES');
+      expect(result.dictionary.length > 5000).to.be.ok;
+    });
+  });
 
   describe('the attachToInput method', function() {
     it('should use TestScheduler correctly', function() {
