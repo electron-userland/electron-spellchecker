@@ -45,7 +45,21 @@ describe('The Dictionary Sync class', function() {
       fs.writeFileSync('./wtfisthisfile', ret);
       throw new Error("Didn't fail!");
     });
+    
+    it('should throw when we try to load es-MX because Google doesnt have it', async function() {
+      let ret = null;
+      try {
+        ret = await this.fixture.loadDictionaryForLanguage('es-MX');
+      } catch (e) {
+        return;
+      }
 
+      d(ret);
+      d(typeof ret);
+      fs.writeFileSync('./wtfisthisfile', ret);
+      throw new Error("Didn't fail!");    
+    });
+    
     it('should only have valid languages in the fallback locale list', async function() {
       return;
       /* NB: This test isn't super important, but it's interesting code so I left
