@@ -11,6 +11,10 @@ export default class ContextMenuBuilder {
     this.debugMode = debugMode;
     this.menu = null;
   }
+  
+  static setLogger(fn) {
+    d.log = fn;
+  }
 
   async showPopupMenu(contextInfo) {
     let menu = await this.buildMenuForElement(contextInfo);

@@ -18,6 +18,10 @@ export default class ContextMenuListener {
 
     this.disp.add(contextMenuEvent.subscribe(handler));
   }
+  
+  static setLogger(fn) {
+    d.log = fn;
+  }
 
   dispose() {
     this.disp.dispose();

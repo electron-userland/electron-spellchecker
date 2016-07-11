@@ -83,6 +83,10 @@ export default class SpellCheckHandler {
       return;
     }
   }
+  
+  static setLogger(fn) {
+    d.log = fn;
+  }
 
   async loadDictionaryForLanguageWithAlternatives(langCode, cacheOnly=false) {
     const localStorageKey =  'electronSpellchecker_alternatesTable';

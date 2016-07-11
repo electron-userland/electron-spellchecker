@@ -21,6 +21,10 @@ export default class DictionarySync {
     this.cacheDir = cacheDir || path.join(app.getPath('userData'), 'dictionaries');
     mkdirp.sync(this.cacheDir);
   }
+  
+  static setLogger(fn) {
+    d.log = fn;
+  }
 
   async loadDictionaryForLanguage(langCode, cacheOnly=false) {
     d(`Loading dictionary for language ${langCode}`);
