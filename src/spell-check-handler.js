@@ -5,7 +5,7 @@ import {spawn} from 'spawn-rx';
 import './custom-operators';
 import DictionarySync from './dictionary-sync';
 import {normalizeLanguageCode} from './utility';
-import FakeLocalStorage from './src';
+import FakeLocalStorage from './fake-local-storage';
 
 import {Spellchecker} from './node-spellchecker';
 
