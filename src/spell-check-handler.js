@@ -5,6 +5,7 @@ import {spawn} from 'spawn-rx';
 import './custom-operators';
 import DictionarySync from './dictionary-sync';
 import {normalizeLanguageCode} from './utility';
+import FakeLocalStorage from './src';
 
 import {Spellchecker} from './node-spellchecker';
 
@@ -64,9 +65,16 @@ export default class SpellCheckHandler {
     this.currentSpellcheckerChanged = new Subject();
     this.spellingErrorOccurred = new Subject();
 
-    this.localStorage = localStorage || window.localStorage;
     this.scheduler = scheduler || Scheduler.default;
     this.shouldAutoCorrect = true;
+    
+    // NB: A Cool thing is when window.localStorage is rigged to blow up
+    // if you touch it from a data: URI in Chromium.
+    try {
+      this.localStorage = localStorage || window.localStorage || new FakeLocalStorage();
+    } catch (ugh) {
+      this.localStorage = new FakeLocalStorage();
+    }
 
     this.disp = new SerialDisposable();
 

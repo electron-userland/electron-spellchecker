@@ -2,6 +2,7 @@ import './support';
 import path from 'path';
 import rimraf from 'rimraf';
 import {ReactiveTest, TestScheduler} from 'rx';
+import FakeLocalStorage from '../src/fake-local-storage';
 
 import DictionarySync from '../src/dictionary-sync';
 import SpellCheckHandler from '../src/spell-check-handler';
@@ -11,20 +12,6 @@ const d = require('debug-electron')('electron-spellchecker-test:spell-check-hand
 let testCount = 0;
 
 const deDE = "Rechtschreibprüfungsleid ist eine Grunderfahrung und bezeichnet als Sammelbegriff all dasjenige, was einen Menschen körperlich und seelisch belastet.";
-
-class FakeLocalStorage {
-  constructor() {
-    this.ls = {};
-  }
-  
-  getItem(item) {
-    return this.ls[item];
-  }
-  
-  setItem(item, val) {
-    this.ls[item] = val;
-  }
-}
 
 describe('The Spell Check Handler Class', function() {
   beforeEach(function() {
