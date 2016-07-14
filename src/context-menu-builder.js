@@ -11,7 +11,7 @@ export default class ContextMenuBuilder {
     this.debugMode = debugMode;
     this.menu = null;
   }
-  
+
   static setLogger(fn) {
     d = fn;
   }
@@ -201,6 +201,18 @@ export default class ContextMenuBuilder {
     let match = menuInfo.selectionText.match(/\w/);
     if (!match || match.length === 0) {
       return menu;
+    }
+
+    if (process.platform === 'darwin') {
+      let target = 'webContents' in this.windowOrWebView ?
+        this.windowOrWebView.webContents : this.windowOrWebView;
+
+      let lookUpDefinition = new MenuItem({
+        label: `Look Up “${menuInfo.selectionText}”`,
+        click: () => target.showDefinitionForSelection()
+      });
+
+      menu.append(lookUpDefinition);
     }
 
     let search = new MenuItem({
