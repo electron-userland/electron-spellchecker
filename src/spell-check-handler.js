@@ -63,6 +63,7 @@ export default class SpellCheckHandler {
     this.currentSpellchecker = null;
     this.currentSpellcheckerLanguage = null;
     this.currentSpellcheckerChanged = new Subject();
+    this.spellCheckInvoked = new Subject();
     this.spellingErrorOccurred = new Subject();
 
     this.scheduler = scheduler || Scheduler.default;
@@ -92,7 +93,7 @@ export default class SpellCheckHandler {
       return;
     }
   }
-  
+
   static setLogger(fn) {
     d = fn;
   }
@@ -136,13 +137,35 @@ export default class SpellCheckHandler {
       return Disposable.empty;
     }
 
+    let possiblySwitchedCharacterSets = new Subject();
+    let wordsTyped = 0;
+
     let input = inputText || (fromEventCapture(document.body, 'input')
       .flatMap((e) => {
         if (!e.target || !e.target.value) return Observable.empty();
+        if (e.target.value.match(/\S\s$/)) {
+          wordsTyped++;
+        }
+
+        if (wordsTyped > 2) {
+          d(`${wordsTyped} words typed without spell checking invoked, redetecting language`);
+          possiblySwitchedCharacterSets.onNext(true);
+        }
+
         return Observable.just(e.target.value);
       }));
 
     let disp = new CompositeDisposable();
+
+    // NB: When users switch character sets (i.e. we're checking in English and
+    // the user suddenly starts typing in Russian), the spellchecker will no
+    // longer invoke us, so we don't have a chance to re-detect the language.
+    //
+    // If we see too many words typed without a spelling detection, we know we
+    // should start rechecking the input box for a language change.
+    disp.add(Observable.merge(this.spellCheckInvoked, this.currentSpellcheckerChanged)
+      .subscribe(() => wordsTyped = 0));
+
 
     let lastInputText = '';
     disp.add(input.subscribe((x) => lastInputText = x));
@@ -155,7 +178,10 @@ export default class SpellCheckHandler {
       initialInputText = Observable.empty();
     }
 
-    let contentToCheck = Observable.merge(this.spellingErrorOccurred, initialInputText)
+    let contentToCheck = Observable.merge(
+        this.spellingErrorOccurred,
+        initialInputText,
+        possiblySwitchedCharacterSets)
       .observeOn(this.scheduler)
       .flatMap(() => {
         if (lastInputText.length < 8) return Observable.empty();
@@ -233,6 +259,8 @@ export default class SpellCheckHandler {
 
   handleElectronSpellCheck(text) {
     if (!this.currentSpellchecker) return true;
+    this.spellCheckInvoked.onNext(true);
+
     if (contractionMap[text.toLocaleLowerCase()]) return true;
 
     d(`Checking spelling of ${text}`);
