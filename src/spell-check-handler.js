@@ -259,9 +259,15 @@ export default class SpellCheckHandler {
   detectLanguageForText(text) {
     // NB: Unfortuantely cld marshals errors incorrectly, so we can't use pify
     cld = cld || require('cld');
+
     return new Promise((res,rej) => {
       cld.detect(text, (err, result) => {
         if (err) { rej(new Error(err.message)); return; }
+        if (!result.reliable || result.languages[0].percent < 85) {
+          rej(new Error('Not enough reliable text'));
+          return;
+        }
+
         res(result.languages[0].code);
       });
     });
