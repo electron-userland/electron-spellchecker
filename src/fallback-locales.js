@@ -3,7 +3,7 @@
 // will try this one instead). Data is mostly sourced from 
 // http://lh.2xlibre.net/locales
 
-module.exports ={
+module.exports = {
   "aa": "aa-ET",
   "af": "af-ZA",
   "ak": "ak-GH",
