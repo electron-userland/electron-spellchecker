@@ -41,6 +41,9 @@ const contractionMap = contractions.reduce((acc, word) => {
   return acc;
 }, {});
 
+/**
+ * This method mimics Observable.fromEvent, but with capture semantics.
+ */
 function fromEventCapture(element, name) {
   return Observable.create((subj) => {
     const handler = function(...args) {
@@ -56,6 +59,21 @@ function fromEventCapture(element, name) {
   });
 }
 
+/**
+ * SpellCheckHandler is the main class of this library, and handles all of the
+ * different pieces of spell checking except for the context menu information.
+ *
+ * Instantiate the class, then call {{attachToInput}} to wire it up. The spell
+ * checker will attempt to automatically check the language that the user is 
+ * typing in and switch on-the fly. However, giving it an explicit hint by 
+ * calling {{switchLanguage}}, or providing it a block of sample text via 
+ * {{provideHintText}} will result in much better results.
+ *
+ * Sample text should be text that is reasonably likely to be in the same language
+ * as the user typing - for example, in an Email reply box, the original Email text
+ * would be a great sample, or in the case of Slack, the existing channel messages
+ * are used as the sample text.
+ */
 export default class SpellCheckHandler {
   constructor(dictionarySync=null, localStorage=null, scheduler=null) {
     this.dictionarySync = dictionarySync || new DictionarySync();
@@ -93,50 +111,37 @@ export default class SpellCheckHandler {
       return;
     }
   }
+    
+  /**
+   * Disconnect the events that we connected in {{attachToInput}} or other places
+   * in the class.
+   */  
+  dispose() {
+    this.disp.dispose();
+  }
 
+  /**
+   * Override the default logger for this class. You probably want to use
+   * {{setGlobalLogger}} instead
+   * 
+   * @param {Function} fn   The function which will operate like console.log
+   */  
   static setLogger(fn) {
     d = fn;
   }
-
-  async loadDictionaryForLanguageWithAlternatives(langCode, cacheOnly=false) {
-    const localStorageKey =  'electronSpellchecker_alternatesTable';
-
-    this.fallbackLocaleTable = this.fallbackLocaleTable || require('./fallback-locales');
-    let lang = langCode.substring(0, 2);
-
-    let alternatives = [langCode, await this.getLikelyLocaleForLanguage(lang), this.fallbackLocaleTable[lang]];
-    let alternatesTable = JSON.parse(this.localStorage.getItem(localStorageKey) || '{}');
-
-    if (langCode in alternatesTable) {
-      try {
-        return {
-          language: alternatesTable[langCode],
-          dictionary: await this.dictionarySync.loadDictionaryForLanguage(alternatesTable[langCode])
-        };
-      } catch (e) {
-        // If we fail to load a saved alternate, this is an indicator that our
-        // data is garbage and we should throw it out entirely.
-        this.localStorage.setItem(localStorageKey, '{}');
-      }
-    }
-
-    d(`Requesting to load ${langCode}, alternatives are ${JSON.stringify(alternatives)}`);
-    return await Observable.of(...alternatives)
-      .concatMap((l) => {
-        return Observable.defer(() =>
-            Observable.fromPromise(this.dictionarySync.loadDictionaryForLanguage(l, cacheOnly)))
-          .map((d) => ({language: l, dictionary: d}))
-          .do(({language}) => {
-            alternatesTable[langCode] = language;
-            this.localStorage.setItem(localStorageKey, JSON.stringify(alternatesTable));
-          })
-          .catch(() => Observable.just(null));
-      })
-      .filter((x) => x !== null)
-      .take(1)
-      .toPromise();
-  }
-
+  
+  /**
+   * Attach to document.body and register ourselves for Electron spell checking.
+   * This method will start to watch text entered by the user and automatically
+   * switch languages as well as enable Electron spell checking (i.e. the red
+   * squigglies).
+   * 
+   * @param  {Observable<String>} inputText     Simulate the user typing text,
+   *                                            for testing.
+   *
+   * @return {Disposable}       A Disposable which will unregister all of the 
+   *                            things that this method registered.
+   */
   attachToInput(inputText=null) {
     // OS X has no need for any of this
     if (process.platform === 'darwin' && !inputText) {
@@ -235,7 +240,14 @@ export default class SpellCheckHandler {
     this.disp.setDisposable(disp);
     return disp;
   }
-
+  
+  /**
+   * autoUnloadDictionariesOnBlur attempts to save memory by unloading 
+   * dictionaries when the window loses focus.
+   * 
+   * @return {Disposable}   A {{Disposable}} that will unhook the events listened
+   *                        to by this method.
+   */
   autoUnloadDictionariesOnBlur() {
     let ret = new CompositeDisposable();
     let hasUnloaded = false;
@@ -262,7 +274,109 @@ export default class SpellCheckHandler {
 
     return ret;
   }
+  
+  /**
+   * Switch the dictionary language to the language of the sample text provided.
+   * As described in the class documentation, call this method with text most 
+   * likely in the same language as the user is typing. The locale (i.e. *US* vs
+   * *UK* vs *AU*) will be inferred heuristically based on the user's computer.
+   * 
+   * @param  {String} inputText   A language code (i.e. 'en-US')
+   * 
+   * @return {Promise}            Completion
+   */
+  async provideHintText(inputText) {
+    let langWithoutLocale = null;
+    try {
+      langWithoutLocale = await this.detectLanguageForText(inputText);
+    } catch (e) {
+      d(`Couldn't detect language for text '${inputText}': ${e.message}, ignoring sample`);
+      return;
+    }
 
+    let lang = await this.getLikelyLocaleForLanguage(langWithoutLocale);
+    await this.switchLanguage(lang);
+  }
+
+  /**
+   * Explicitly switch the language to a specific language. This method will 
+   * automatically download the dictionary for the specific language and locale
+   * and on failure, will attempt to switch to dictionaries that are the same
+   * language but a default locale.
+   * 
+   * @param  {String} inputText   A language code (i.e. 'en-US')
+   * 
+   * @return {Promise}            Completion
+   */
+  async switchLanguage(langCode) {
+    let actualLang;
+    let dict = null;
+
+    try {
+      let {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
+      actualLang = language;  dict = dictionary;
+    } catch (e) {
+      d(`Failed to load dictionary ${langCode}: ${e.message}`);
+      throw e;
+    }
+
+    d(`Setting current spellchecker to ${actualLang}, requested language was ${langCode}`);
+    if (this.currentSpellcheckerLanguage !== actualLang || !this.currentSpellchecker) {
+      d(`Creating node-spellchecker instance`);
+      this.currentSpellchecker = new Spellchecker();
+      this.currentSpellchecker.setDictionary(actualLang, dict);
+      this.currentSpellcheckerLanguage = actualLang;
+      this.currentSpellcheckerChanged.onNext(true);
+    }
+  }
+
+  /**
+   * Loads a dictionary and attempts to use fallbacks if it fails.
+   * @private
+   */
+  async loadDictionaryForLanguageWithAlternatives(langCode, cacheOnly=false) {
+    const localStorageKey =  'electronSpellchecker_alternatesTable';
+
+    this.fallbackLocaleTable = this.fallbackLocaleTable || require('./fallback-locales');
+    let lang = langCode.substring(0, 2);
+
+    let alternatives = [langCode, await this.getLikelyLocaleForLanguage(lang), this.fallbackLocaleTable[lang]];
+    let alternatesTable = JSON.parse(this.localStorage.getItem(localStorageKey) || '{}');
+
+    if (langCode in alternatesTable) {
+      try {
+        return {
+          language: alternatesTable[langCode],
+          dictionary: await this.dictionarySync.loadDictionaryForLanguage(alternatesTable[langCode])
+        };
+      } catch (e) {
+        // If we fail to load a saved alternate, this is an indicator that our
+        // data is garbage and we should throw it out entirely.
+        this.localStorage.setItem(localStorageKey, '{}');
+      }
+    }
+
+    d(`Requesting to load ${langCode}, alternatives are ${JSON.stringify(alternatives)}`);
+    return await Observable.of(...alternatives)
+      .concatMap((l) => {
+        return Observable.defer(() =>
+            Observable.fromPromise(this.dictionarySync.loadDictionaryForLanguage(l, cacheOnly)))
+          .map((d) => ({language: l, dictionary: d}))
+          .do(({language}) => {
+            alternatesTable[langCode] = language;
+            this.localStorage.setItem(localStorageKey, JSON.stringify(alternatesTable));
+          })
+          .catch(() => Observable.just(null));
+      })
+      .filter((x) => x !== null)
+      .take(1)
+      .toPromise();
+  }
+
+  /**
+   *  The actual callout called by Electron to handle spellchecking
+   *  @private
+   */
   handleElectronSpellCheck(text) {
     if (!this.currentSpellchecker) return true;
     this.spellCheckInvoked.onNext(true);
@@ -288,6 +402,10 @@ export default class SpellCheckHandler {
     return !ret;
   }
 
+  /**
+   * Calls out to cld2 to detect the language of the given text
+   * @private
+   */
   detectLanguageForText(text) {
     // NB: Unfortuantely cld marshals errors incorrectly, so we can't use pify
     cld = cld || require('cld');
@@ -305,6 +423,10 @@ export default class SpellCheckHandler {
     });
   }
 
+  /**
+   * Returns the locale for a language code based on the user's machine (i.e. 
+   * 'en' => 'en-GB')
+   */
   async getLikelyLocaleForLanguage(language) {
     let lang = language.toLowerCase();
     if (!this.likelyLocaleTable) this.likelyLocaleTable = await this.buildLikelyLocaleTable();
@@ -315,6 +437,10 @@ export default class SpellCheckHandler {
     return this.fallbackLocaleTable[lang];
   }
 
+  /**
+   * A proxy for the current spellchecker's method of the same name
+   * @private
+   */
   async getCorrectionsForMisspelling(text) {
     // NB: This is async even though we don't use await, to make it easy for
     // ContextMenuBuilder to use this method even when it's hosted in another
@@ -326,6 +452,10 @@ export default class SpellCheckHandler {
     return this.currentSpellchecker.getCorrectionsForMisspelling(text);
   }
 
+  /**
+   * A proxy for the current spellchecker's method of the same name
+   * @private
+   */
   async addToDictionary(text) {
     // NB: Same deal as getCorrectionsForMisspelling.
     if (process.platform !== 'darwin') return;
@@ -334,6 +464,11 @@ export default class SpellCheckHandler {
     this.currentSpellchecker.add(text);
   }
 
+  /**
+   * Call out to the OS to figure out what locales the user is probably 
+   * interested in then save it off as a table.
+   * @private
+   */
   async buildLikelyLocaleTable() {
     let localeList = [];
 
@@ -403,44 +538,5 @@ export default class SpellCheckHandler {
 
     d(`Result: ${JSON.stringify(ret)}`);
     return ret;
-  }
-
-  async provideHintText(inputText) {
-    let langWithoutLocale = null;
-    try {
-      langWithoutLocale = await this.detectLanguageForText(inputText);
-    } catch (e) {
-      d(`Couldn't detect language for text '${inputText}': ${e.message}, ignoring sample`);
-      return;
-    }
-
-    let lang = await this.getLikelyLocaleForLanguage(langWithoutLocale);
-    await this.switchLanguage(lang);
-  }
-
-  async switchLanguage(langCode) {
-    let actualLang;
-    let dict = null;
-
-    try {
-      let {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
-      actualLang = language;  dict = dictionary;
-    } catch (e) {
-      d(`Failed to load dictionary ${langCode}: ${e.message}`);
-      throw e;
-    }
-
-    d(`Setting current spellchecker to ${actualLang}, requested language was ${langCode}`);
-    if (this.currentSpellcheckerLanguage !== actualLang || !this.currentSpellchecker) {
-      d(`Creating node-spellchecker instance`);
-      this.currentSpellchecker = new Spellchecker();
-      this.currentSpellchecker.setDictionary(actualLang, dict);
-      this.currentSpellcheckerLanguage = actualLang;
-      this.currentSpellcheckerChanged.onNext(true);
-    }
-  }
-
-  dispose() {
-    this.disp.dispose();
   }
 }

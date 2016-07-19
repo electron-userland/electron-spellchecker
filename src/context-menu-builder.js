@@ -4,7 +4,22 @@ const {Menu, MenuItem} = remote;
 
 let d = require('debug-electron')('electron-spellchecker:context-menu-builder');
 
+/**
+ * ContextMenuBuilder creates context menus based on the content clicked - this
+ * information is derived from 
+ * https://github.com/electron/electron/blob/master/docs/api/web-contents.md#event-context-menu,
+ * which we use to generate the menu. We also use the spell-check information to
+ * generate suggestions.
+ */
 export default class ContextMenuBuilder {
+  /**
+   * Creates an instance of ContextMenuBuilder
+   * 
+   * @param  {SpellCheckHandler} spellCheckHandler  The spell checker to generate
+   *                                                recommendations for.
+   * @param  {BrowserWindow|WebView} windowOrWebView  The hosting window/WebView
+   * @param  {Boolean} debugMode    If true, display the "Inspect Element" menu item.
+   */
   constructor(spellCheckHandler, windowOrWebView=null, debugMode=false) {
     this.spellCheckHandler = spellCheckHandler;
     this.windowOrWebView = windowOrWebView || remote.getCurrentWindow();
@@ -12,10 +27,25 @@ export default class ContextMenuBuilder {
     this.menu = null;
   }
 
+  /**
+   * Override the default logger for this class. You probably want to use
+   * {{setGlobalLogger}} instead
+   * 
+   * @param {Function} fn   The function which will operate like console.log
+   */
   static setLogger(fn) {
     d = fn;
   }
 
+  /**
+   * Shows a popup menu given the information returned from the context-menu 
+   * event. This is probably the only method you need to call in this class.
+   * 
+   * @param  {Object} contextInfo   The object returned from the 'context-menu'
+   *                                Electron event.
+   *                                
+   * @return {Promise}              Completion
+   */
   async showPopupMenu(contextInfo) {
     let menu = await this.buildMenuForElement(contextInfo);
 
@@ -26,9 +56,11 @@ export default class ContextMenuBuilder {
   }
 
   /**
-   * Builds a context menu specific to the given info.
+   * Builds a context menu specific to the given info that _would_ be shown 
+   * immediately by {{showPopupMenu}}. Use this to add your own menu items to
+   * the list but use most of the default behavior.
    *
-   * @return {Menu}      The newly created `Menu`
+   * @return {Promise<Menu>}      The newly created `Menu`
    */
   async buildMenuForElement(info) {
     d(`Got context menu event with args: ${JSON.stringify(info)}`);
