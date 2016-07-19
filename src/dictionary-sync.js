@@ -21,7 +21,7 @@ export default class DictionarySync {
     this.cacheDir = cacheDir || path.join(app.getPath('userData'), 'dictionaries');
     mkdirp.sync(this.cacheDir);
   }
-  
+
   static setLogger(fn) {
     d = fn;
   }
@@ -38,11 +38,14 @@ export default class DictionarySync {
       if (fs.existsSync(target)) {
         fileExists = true;
         d(`Returning local copy: ${target}`);
-        return await fs.readFile(target, {});
+        let ret = await fs.readFile(target, {});
+
+        if (ret.length < 64*1024) {
+          throw new Error("File exists but is most likely bogus");
+        }
       }
     } catch (e) {
       d(`Failed to read file ${target}: ${e.message}`);
-      throw e;
     }
 
     if (fileExists) {
@@ -58,7 +61,14 @@ export default class DictionarySync {
     d(`Actually downloading ${url}`);
     await downloadFileOrUrl(url, target);
 
-    if (cacheOnly) return target; return await fs.readFile(target, {});
+    if (cacheOnly) return target;
+
+    let ret = await fs.readFile(target, {});
+    if (ret.length < 64*1024) {
+      throw new Error("File exists but is most likely bogus");
+    }
+
+    return ret;
   }
 
   preloadDictionaries(languageList=null) {
