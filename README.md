@@ -39,4 +39,4 @@ Sample text should be text that is reasonably likely to be in the same language 
 ## Learning more
 
 * Run `npm start` to start [the example application](https://github.com/paulcbetts/electron-spellchecker/tree/master/example) and play around.
-* Read [the class documentation](https://github.com/paulcbetts/electron-spellchecker/tree/master/example) to learn more.
+* Read [the class documentation](http://paulcbetts.github.io/electron-spellchecker/docs) to learn more.
