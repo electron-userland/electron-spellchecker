@@ -68,7 +68,7 @@ export default class SpellCheckHandler {
 
     this.scheduler = scheduler || Scheduler.default;
     this.shouldAutoCorrect = true;
-    
+
     // NB: A Cool thing is when window.localStorage is rigged to blow up
     // if you touch it from a data: URI in Chromium.
     try {
@@ -108,10 +108,16 @@ export default class SpellCheckHandler {
     let alternatesTable = JSON.parse(this.localStorage.getItem(localStorageKey) || '{}');
 
     if (langCode in alternatesTable) {
-      return {
-        language: alternatesTable[langCode],
-        dictionary: await this.dictionarySync.loadDictionaryForLanguage(alternatesTable[langCode])
-      };
+      try {
+        return {
+          language: alternatesTable[langCode],
+          dictionary: await this.dictionarySync.loadDictionaryForLanguage(alternatesTable[langCode])
+        };
+      } catch (e) {
+        // If we fail to load a saved alternate, this is an indicator that our
+        // data is garbage and we should throw it out entirely.
+        this.localStorage.setItem(localStorageKey, '{}');
+      }
     }
 
     d(`Requesting to load ${langCode}, alternatives are ${JSON.stringify(alternatives)}`);
