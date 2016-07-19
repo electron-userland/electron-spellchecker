@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <base data-ice="baseUrl" href="">
+  <title data-ice="title">Test | electron-compilers API Document</title>
+  <link type="text/css" rel="stylesheet" href="css/style.css">
+  <link type="text/css" rel="stylesheet" href="css/prettify-tomorrow.css">
+  <script src="script/prettify/prettify.js"></script>
+  
+  
+  <script src="script/manual.js"></script>
+</head>
+<body class="layout-container" data-ice="rootContainer">
+
+<header>
+  <a href="./">Home</a>
+  
+  <a href="identifiers.html">Reference</a>
+  <a href="source.html">Source</a>
+  <a href="test.html" data-ice="testLink">Test</a>
+  <a data-ice="repoURL" href="https://github.com/paulcbetts/electron-spellchecker" class="repo-url-github">Repository</a>
+  <div class="search-box">
+  <span>
+    <img src="./image/search.png">
+    <span class="search-input-edge"></span><input class="search-input"><span class="search-input-edge"></span>
+  </span>
+    <ul class="search-result"></ul>
+  </div>
+</header>
+
+<nav class="navigation" data-ice="nav"><div>
+  <ul>
+    
+  <li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/context-menu-builder.js~ContextMenuBuilder.html">ContextMenuBuilder</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/context-menu-listener.js~ContextMenuListener.html">ContextMenuListener</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/dictionary-sync.js~DictionarySync.html">DictionarySync</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/fake-local-storage.js~FakeLocalStorage.html">FakeLocalStorage</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/spell-check-handler.js~SpellCheckHandler.html">SpellCheckHandler</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-function">F</span><span data-ice="name"><span><a href="function/index.html#static-function-normalizeLanguageCode">normalizeLanguageCode</a></span></span></li>
+</ul>
+</div>
+</nav>
+
+<div class="content" data-ice="content"><h1>Test</h1>
+<table class="test-summary">
+  <thead>
+    <tr>
+      <td class="test-description">Description</td>
+      <td class="test-target">Identifier</td>
+      <td class="test-count">Count</td>
+    </tr>
+  </thead>
+
+  <tbody data-ice="tests">
+<tr class="test-describe" data-ice="testDescribe" style="display: none;" data-test-depth="0">
+  <td data-ice="testDescription" style="padding-left: 10px"><span class="toggle closed"></span><span><a href="test-file/test/asserttest.js.html#lineNumber9"><p>The test runner</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td data-ice="testCount">1</td>
+</tr>
+
+<tr data-ice="testIt" style="display: none;" data-test-depth="1">
+  <td data-ice="testDescription" style="padding-left: 20px"><span><a href="test-file/test/asserttest.js.html#lineNumber10"><p>should pass this test</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td></td>
+</tr>
+
+
+<tr class="test-describe" data-ice="testDescribe" style="display: none;" data-test-depth="0">
+  <td data-ice="testDescription" style="padding-left: 10px"><span class="toggle closed"></span><span><a href="test-file/test/dictionary-sync.js.html#lineNumber14"><p>The Dictionary Sync class</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td data-ice="testCount">4</td>
+</tr>
+
+
+
+<tr class="test-describe" data-ice="testDescribe" style="display: none;" data-test-depth="1">
+  <td data-ice="testDescription" style="padding-left: 20px"><span class="toggle closed"></span><span><a href="test-file/test/dictionary-sync.js.html#lineNumber25"><p>loadDictionaryForLanguage method</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td data-ice="testCount">3</td>
+</tr>
+
+<tr data-ice="testIt" style="display: none;" data-test-depth="2">
+  <td data-ice="testDescription" style="padding-left: 30px"><span><a href="test-file/test/dictionary-sync.js.html#lineNumber28"><p>should download the German dictionary</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td></td>
+</tr>
+<tr data-ice="testIt" style="display: none;" data-test-depth="2">
+  <td data-ice="testDescription" style="padding-left: 30px"><span><a href="test-file/test/dictionary-sync.js.html#lineNumber35"><p>should throw when we a language that isnt real</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td></td>
+</tr>
+<tr data-ice="testIt" style="display: none;" data-test-depth="2">
+  <td data-ice="testDescription" style="padding-left: 30px"><span><a href="test-file/test/dictionary-sync.js.html#lineNumber49"><p>should throw when we try to load es-MX because Google doesnt have it</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td></td>
+</tr>
+
+
+<tr class="test-describe" data-ice="testDescribe" style="display: none;" data-test-depth="1">
+  <td data-ice="testDescription" style="padding-left: 20px"><span class="toggle closed"></span><span><a href="test-file/test/dictionary-sync.js.html#lineNumber64"><p>preloadDictionaries</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td data-ice="testCount">1</td>
+</tr>
+
+<tr data-ice="testIt" style="display: none;" data-test-depth="2">
+  <td data-ice="testDescription" style="padding-left: 30px"><span><a href="test-file/test/dictionary-sync.js.html#lineNumber67"><p>should preload some dictionaries</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td></td>
+</tr>
+
+
+<tr class="test-describe" data-ice="testDescribe" style="display: none;" data-test-depth="0">
+  <td data-ice="testDescription" style="padding-left: 10px"><span class="toggle closed"></span><span><a href="test-file/test/spell-check-handler.js.html#lineNumber16"><p>The Spell Check Handler Class</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td data-ice="testCount">7</td>
+</tr>
+
+
+
+<tr class="test-describe" data-ice="testDescribe" style="display: none;" data-test-depth="1">
+  <td data-ice="testDescription" style="padding-left: 20px"><span class="toggle closed"></span><span><a href="test-file/test/spell-check-handler.js.html#lineNumber28"><p>buildLikelyLocaleTable method</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td data-ice="testCount">1</td>
+</tr>
+
+<tr data-ice="testIt" style="display: none;" data-test-depth="2">
+  <td data-ice="testDescription" style="padding-left: 30px"><span><a href="test-file/test/spell-check-handler.js.html#lineNumber29"><p>should have en in the list</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td></td>
+</tr>
+
+
+<tr class="test-describe" data-ice="testDescribe" style="display: none;" data-test-depth="1">
+  <td data-ice="testDescription" style="padding-left: 20px"><span class="toggle closed"></span><span><a href="test-file/test/spell-check-handler.js.html#lineNumber37"><p>the setLanguage method</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td data-ice="testCount">1</td>
+</tr>
+
+<tr data-ice="testIt" style="display: none;" data-test-depth="2">
+  <td data-ice="testDescription" style="padding-left: 30px"><span><a href="test-file/test/spell-check-handler.js.html#lineNumber40"><p>should load a bunch of common languages</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td></td>
+</tr>
+
+
+<tr class="test-describe" data-ice="testDescribe" style="display: none;" data-test-depth="1">
+  <td data-ice="testDescription" style="padding-left: 20px"><span class="toggle closed"></span><span><a href="test-file/test/spell-check-handler.js.html#lineNumber70"><p>the loadDictionaryForLanguageWithAlternatives method</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td data-ice="testCount">2</td>
+</tr>
+
+<tr data-ice="testIt" style="display: none;" data-test-depth="2">
+  <td data-ice="testDescription" style="padding-left: 30px"><span><a href="test-file/test/spell-check-handler.js.html#lineNumber73"><p>should load a simple example</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td></td>
+</tr>
+<tr data-ice="testIt" style="display: none;" data-test-depth="2">
+  <td data-ice="testDescription" style="padding-left: 30px"><span><a href="test-file/test/spell-check-handler.js.html#lineNumber81"><p>should load a fallback example</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td></td>
+</tr>
+
+
+<tr class="test-describe" data-ice="testDescribe" style="display: none;" data-test-depth="1">
+  <td data-ice="testDescription" style="padding-left: 20px"><span class="toggle closed"></span><span><a href="test-file/test/spell-check-handler.js.html#lineNumber91"><p>the attachToInput method</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td data-ice="testCount">3</td>
+</tr>
+
+<tr data-ice="testIt" style="display: none;" data-test-depth="2">
+  <td data-ice="testDescription" style="padding-left: 30px"><span><a href="test-file/test/spell-check-handler.js.html#lineNumber92"><p>should use TestScheduler correctly</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td></td>
+</tr>
+<tr data-ice="testIt" style="display: none;" data-test-depth="2">
+  <td data-ice="testDescription" style="padding-left: 30px"><span><a href="test-file/test/spell-check-handler.js.html#lineNumber110"><p>should detect the simple case of pasting in a long string</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td></td>
+</tr>
+<tr data-ice="testIt" style="display: none;" data-test-depth="2">
+  <td data-ice="testDescription" style="padding-left: 30px"><span><a href="test-file/test/spell-check-handler.js.html#lineNumber129"><p>should switch languages if users type different text</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td></td>
+</tr>
+
+
+<tr class="test-describe" data-ice="testDescribe" style="display: none;" data-test-depth="0">
+  <td data-ice="testDescription" style="padding-left: 10px"><span class="toggle closed"></span><span><a href="test-file/test/utility.js.html#lineNumber4"><p>The Utility file</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td data-ice="testCount">1</td>
+</tr>
+
+
+
+<tr class="test-describe" data-ice="testDescribe" style="display: none;" data-test-depth="1">
+  <td data-ice="testDescription" style="padding-left: 20px"><span class="toggle closed"></span><span><a href="test-file/test/utility.js.html#lineNumber6"><p>normalizeLanguageCode method</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td data-ice="testCount">1</td>
+</tr>
+
+<tr data-ice="testIt" style="display: none;" data-test-depth="2">
+  <td data-ice="testDescription" style="padding-left: 30px"><span><a href="test-file/test/utility.js.html#lineNumber7"><p>should consider all of these valid</p>
+</a></span></td>
+  <td data-ice="testTarget" class="test-target">-</td>
+  <td></td>
+</tr>
+
+</tbody>
+</table>
+</div>
+
+<footer class="footer">
+  Generated by <a href="https://esdoc.org">ESDoc<span data-ice="esdocVersion">(0.4.7)</span></a>
+</footer>
+
+<script src="script/search_index.js"></script>
+<script src="script/search.js"></script>
+<script src="script/pretty-print.js"></script>
+<script src="script/inherited-summary.js"></script>
+<script src="script/test-summary.js"></script>
+<script src="script/inner-link.js"></script>
+<script src="script/patch-for-local.js"></script>
+</body>
+</html>

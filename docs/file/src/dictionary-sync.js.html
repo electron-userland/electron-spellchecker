@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <base data-ice="baseUrl" href="../../">
+  <title data-ice="title">src/dictionary-sync.js | electron-compilers API Document</title>
+  <link type="text/css" rel="stylesheet" href="css/style.css">
+  <link type="text/css" rel="stylesheet" href="css/prettify-tomorrow.css">
+  <script src="script/prettify/prettify.js"></script>
+  
+  
+  <script src="script/manual.js"></script>
+</head>
+<body class="layout-container" data-ice="rootContainer">
+
+<header>
+  <a href="./">Home</a>
+  
+  <a href="identifiers.html">Reference</a>
+  <a href="source.html">Source</a>
+  <a href="test.html" data-ice="testLink">Test</a>
+  <a data-ice="repoURL" href="https://github.com/paulcbetts/electron-spellchecker" class="repo-url-github">Repository</a>
+  <div class="search-box">
+  <span>
+    <img src="./image/search.png">
+    <span class="search-input-edge"></span><input class="search-input"><span class="search-input-edge"></span>
+  </span>
+    <ul class="search-result"></ul>
+  </div>
+</header>
+
+<nav class="navigation" data-ice="nav"><div>
+  <ul>
+    
+  <li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/context-menu-builder.js~ContextMenuBuilder.html">ContextMenuBuilder</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/context-menu-listener.js~ContextMenuListener.html">ContextMenuListener</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/dictionary-sync.js~DictionarySync.html">DictionarySync</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/fake-local-storage.js~FakeLocalStorage.html">FakeLocalStorage</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/spell-check-handler.js~SpellCheckHandler.html">SpellCheckHandler</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-function">F</span><span data-ice="name"><span><a href="function/index.html#static-function-normalizeLanguageCode">normalizeLanguageCode</a></span></span></li>
+</ul>
+</div>
+</nav>
+
+<div class="content" data-ice="content"><h1 data-ice="title">src/dictionary-sync.js</h1>
+<pre class="source-code line-number raw-source-code"><code class="prettyprint linenums" data-ice="content">import path from &apos;path&apos;;
+import mkdirp from &apos;mkdirp&apos;;
+import {getURLForHunspellDictionary} from &apos;./node-spellchecker&apos;;
+import {getInstalledKeyboardLanguages} from &apos;keyboard-layout&apos;;
+import {Observable} from &apos;rx&apos;;
+
+import {fs} from &apos;./promisify&apos;;
+import {normalizeLanguageCode} from &apos;./utility&apos;;
+
+let d = require(&apos;debug-electron&apos;)(&apos;electron-spellchecker:dictionary-sync&apos;);
+
+const app = process.type === &apos;renderer&apos; ?
+  require(&apos;electron&apos;).remote.app :
+  require(&apos;electron&apos;).app;
+
+const {downloadFileOrUrl} =
+  require(&apos;electron-remote&apos;).requireTaskPool(require.resolve(&apos;electron-remote/remote-ajax&apos;));
+
+/**
+ * DictioanrySync handles downloading and saving Hunspell dictionaries. Pass it
+ * to {{SpellCheckHandler}} to configure a custom cache directory.
+ */
+export default class DictionarySync {
+  /**
+   * Creates a DictionarySync
+   * 
+   * @param  {String} cacheDir    The path to a directory to store dictionaries.
+   *                              If not given, the Electron user data directory
+   *                              will be used.
+   */
+  constructor(cacheDir=null) {
+    this.cacheDir = cacheDir || path.join(app.getPath(&apos;userData&apos;), &apos;dictionaries&apos;);
+    mkdirp.sync(this.cacheDir);
+  }
+
+  /**
+   * Override the default logger for this class. You probably want to use
+   * {{setGlobalLogger}} instead
+   * 
+   * @param {Function} fn   The function which will operate like console.log
+   */  
+  static setLogger(fn) {
+    d = fn;
+  }
+
+  /**
+   * Loads the dictionary for a given language code, trying first to load a 
+   * local version, then downloading it. You probably don&apos;t want this method 
+   * directly, but the wrapped version 
+   * {{loadDictionaryForLanguageWithAlternatives}} which is in {{SpellCheckHandler}}.
+   * 
+   * @param  {String} langCode        The language code (i.e. &apos;en-US&apos;)
+   * @param  {Boolean} cacheOnly      If true, don&apos;t load the file content into
+   *                                  memory, only download it
+   * 
+   * @return {Promise&lt;Buffer|String&gt;}     A Buffer of the file contents if 
+   *                                      {{cacheOnly}} is False, or the path to
+   *                                      the file if True.
+   */
+  async loadDictionaryForLanguage(langCode, cacheOnly=false) {
+    d(`Loading dictionary for language ${langCode}`);
+    if (process.platform === &apos;darwin&apos;) return new Buffer([]);
+
+    let lang = normalizeLanguageCode(langCode);
+    let target = path.join(this.cacheDir, `${lang}.bdic`);
+
+    let fileExists = false;
+    try {
+      if (fs.existsSync(target)) {
+        fileExists = true;
+        d(`Returning local copy: ${target}`);
+        let ret = await fs.readFile(target, {});
+      
+        if (ret.length &lt; 64*1024) {
+          throw new Error(&quot;File exists but is most likely bogus&quot;);
+        }
+      }
+    } catch (e) {
+      d(`Failed to read file ${target}: ${e.message}`);
+    }
+
+    if (fileExists) {
+      try {
+        await fs.unlink(target);
+      } catch (e) {
+        d(&quot;Can&apos;t clear out file, bailing&quot;);
+        throw e;
+      }
+    }
+
+    let url = getURLForHunspellDictionary(lang);
+    d(`Actually downloading ${url}`);
+    await downloadFileOrUrl(url, target);
+
+    if (cacheOnly) return target;
+
+    let ret = await fs.readFile(target, {});
+    if (ret.length &lt; 64*1024) {
+      throw new Error(&quot;File exists but is most likely bogus&quot;);
+    }
+
+    return ret;
+  }
+
+  /**
+   * Pre-download dictionaries for languages that the user is likely to speak 
+   * (based usually on their keyboard layouts). Note that this method only works
+   * on Windows currently.
+   * 
+   * @param  {Array&lt;String&gt;} languageList     Override the list of languages to
+   *                                          download, for testing.
+   *
+   * @return {Promise&lt;Array&lt;String&gt;&gt;}         A list of strings to dictionaries 
+   *                                          that were downloaded.
+   */
+  preloadDictionaries(languageList=null) {
+    return Observable.from(languageList || getInstalledKeyboardLanguages())
+      .flatMap((x) =&gt; Observable.fromPromise(this.loadDictionaryForLanguage(x, true)))
+      .reduce((acc,x) =&gt; { acc.push(x); return acc; }, [])
+      .toPromise();
+  }
+}
+</code></pre>
+
+</div>
+
+<footer class="footer">
+  Generated by <a href="https://esdoc.org">ESDoc<span data-ice="esdocVersion">(0.4.7)</span></a>
+</footer>
+
+<script src="script/search_index.js"></script>
+<script src="script/search.js"></script>
+<script src="script/pretty-print.js"></script>
+<script src="script/inherited-summary.js"></script>
+<script src="script/test-summary.js"></script>
+<script src="script/inner-link.js"></script>
+<script src="script/patch-for-local.js"></script>
+</body>
+</html>

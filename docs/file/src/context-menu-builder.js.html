@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <base data-ice="baseUrl" href="../../">
+  <title data-ice="title">src/context-menu-builder.js | electron-compilers API Document</title>
+  <link type="text/css" rel="stylesheet" href="css/style.css">
+  <link type="text/css" rel="stylesheet" href="css/prettify-tomorrow.css">
+  <script src="script/prettify/prettify.js"></script>
+  
+  
+  <script src="script/manual.js"></script>
+</head>
+<body class="layout-container" data-ice="rootContainer">
+
+<header>
+  <a href="./">Home</a>
+  
+  <a href="identifiers.html">Reference</a>
+  <a href="source.html">Source</a>
+  <a href="test.html" data-ice="testLink">Test</a>
+  <a data-ice="repoURL" href="https://github.com/paulcbetts/electron-spellchecker" class="repo-url-github">Repository</a>
+  <div class="search-box">
+  <span>
+    <img src="./image/search.png">
+    <span class="search-input-edge"></span><input class="search-input"><span class="search-input-edge"></span>
+  </span>
+    <ul class="search-result"></ul>
+  </div>
+</header>
+
+<nav class="navigation" data-ice="nav"><div>
+  <ul>
+    
+  <li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/context-menu-builder.js~ContextMenuBuilder.html">ContextMenuBuilder</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/context-menu-listener.js~ContextMenuListener.html">ContextMenuListener</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/dictionary-sync.js~DictionarySync.html">DictionarySync</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/fake-local-storage.js~FakeLocalStorage.html">FakeLocalStorage</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/spell-check-handler.js~SpellCheckHandler.html">SpellCheckHandler</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-function">F</span><span data-ice="name"><span><a href="function/index.html#static-function-normalizeLanguageCode">normalizeLanguageCode</a></span></span></li>
+</ul>
+</div>
+</nav>
+
+<div class="content" data-ice="content"><h1 data-ice="title">src/context-menu-builder.js</h1>
+<pre class="source-code line-number raw-source-code"><code class="prettyprint linenums" data-ice="content">import {clipboard, nativeImage, remote, shell} from &apos;electron&apos;;
+
+const {Menu, MenuItem} = remote;
+
+let d = require(&apos;debug-electron&apos;)(&apos;electron-spellchecker:context-menu-builder&apos;);
+
+/**
+ * ContextMenuBuilder creates context menus based on the content clicked - this
+ * information is derived from 
+ * https://github.com/electron/electron/blob/master/docs/api/web-contents.md#event-context-menu,
+ * which we use to generate the menu. We also use the spell-check information to
+ * generate suggestions.
+ */
+export default class ContextMenuBuilder {
+  /**
+   * Creates an instance of ContextMenuBuilder
+   * 
+   * @param  {SpellCheckHandler} spellCheckHandler  The spell checker to generate
+   *                                                recommendations for.
+   * @param  {BrowserWindow|WebView} windowOrWebView  The hosting window/WebView
+   * @param  {Boolean} debugMode    If true, display the &quot;Inspect Element&quot; menu item.
+   */
+  constructor(spellCheckHandler, windowOrWebView=null, debugMode=false) {
+    this.spellCheckHandler = spellCheckHandler;
+    this.windowOrWebView = windowOrWebView || remote.getCurrentWindow();
+    this.debugMode = debugMode;
+    this.menu = null;
+  }
+
+  /**
+   * Override the default logger for this class. You probably want to use
+   * {{setGlobalLogger}} instead
+   * 
+   * @param {Function} fn   The function which will operate like console.log
+   */
+  static setLogger(fn) {
+    d = fn;
+  }
+
+  /**
+   * Shows a popup menu given the information returned from the context-menu 
+   * event. This is probably the only method you need to call in this class.
+   * 
+   * @param  {Object} contextInfo   The object returned from the &apos;context-menu&apos;
+   *                                Electron event.
+   *                                
+   * @return {Promise}              Completion
+   */
+  async showPopupMenu(contextInfo) {
+    let menu = await this.buildMenuForElement(contextInfo);
+
+    // Opening a menu blocks the renderer process, which is definitely not
+    // suitable for running tests
+    if (!menu) return;
+    menu.popup(remote.getCurrentWindow());
+  }
+
+  /**
+   * Builds a context menu specific to the given info that _would_ be shown 
+   * immediately by {{showPopupMenu}}. Use this to add your own menu items to
+   * the list but use most of the default behavior.
+   *
+   * @return {Promise&lt;Menu&gt;}      The newly created `Menu`
+   */
+  async buildMenuForElement(info) {
+    d(`Got context menu event with args: ${JSON.stringify(info)}`);
+
+    if (info.linkURL &amp;&amp; info.linkURL.length &gt; 0) {
+      return this.buildMenuForLink(info);
+    }
+
+    if (info.hasImageContents &amp;&amp; info.srcURL &amp;&amp; info.srcURL.length &gt; 1) {
+      return this.buildMenuForImage(info);
+    }
+
+    if (info.isEditable || (info.inputFieldType &amp;&amp; info.inputFieldType !== &apos;none&apos;)) {
+      return await this.buildMenuForTextInput(info);
+    }
+
+    return this.buildMenuForText(info);
+  }
+
+  /**
+   * Builds a menu applicable to a text input field.
+   *
+   * @return {Menu}  The `Menu`
+   */
+  async buildMenuForTextInput(menuInfo) {
+    let menu = new Menu();
+
+    await this.addSpellingItems(menu, menuInfo);
+    this.addSearchItems(menu, menuInfo);
+
+    this.addCut(menu, menuInfo);
+    this.addCopy(menu, menuInfo);
+    this.addPaste(menu, menuInfo);
+    this.addInspectElement(menu, menuInfo);
+
+    return menu;
+  }
+
+  /**
+   * Builds a menu applicable to a link element.
+   *
+   * @return {Menu}  The `Menu`
+   */
+  buildMenuForLink(menuInfo) {
+    let menu = new Menu();
+    let isEmailAddress = menuInfo.linkURL.startsWith(&apos;mailto:&apos;);
+
+    let copyLink = new MenuItem({
+      label: isEmailAddress ? &apos;Copy Email Address&apos; : &apos;Copy Link&apos;,
+      click: () =&gt; {
+        // Omit the mailto: portion of the link; we just want the address
+        clipboard.writeText(isEmailAddress ?
+          menuInfo.linkText : menuInfo.linkURL);
+      }
+    });
+
+    let openLink = new MenuItem({
+      label: &apos;Open Link&apos;,
+      click: () =&gt; {
+        d(`Navigating to: ${menuInfo.linkURL}`);
+        shell.openExternal(menuInfo.linkURL);
+      }
+    });
+
+    menu.append(copyLink);
+    menu.append(openLink);
+
+    this.addSeparator(menu);
+
+    this.addImageItems(menu, menuInfo);
+    this.addInspectElement(menu, menuInfo);
+
+    return menu;
+  }
+
+  /**
+   * Builds a menu applicable to a text field.
+   *
+   * @return {Menu}  The `Menu`
+   */
+  buildMenuForText(menuInfo) {
+    let menu = new Menu();
+
+    this.addSearchItems(menu, menuInfo);
+    this.addCopy(menu, menuInfo);
+    this.addInspectElement(menu, menuInfo);
+
+    return menu;
+  }
+
+  /**
+   * Builds a menu applicable to an image.
+   *
+   * @return {Menu}  The `Menu`
+   */
+  buildMenuForImage(menuInfo) {
+    let menu = new Menu();
+
+    this.addImageItems(menu, menuInfo);
+    this.addInspectElement(menu, menuInfo);
+    return menu;
+  }
+
+  /**
+   * Checks if the current text selection contains a single misspelled word and
+   * if so, adds suggested spellings as individual menu items.
+   */
+  async addSpellingItems(menu, menuInfo) {
+    let target = &apos;webContents&apos; in this.windowOrWebView ?
+      this.windowOrWebView.webContents : this.windowOrWebView;
+
+    if (!menuInfo.misspelledWord || menuInfo.misspelledWord.length &lt; 1) {
+      return menu;
+    }
+
+    // Ensure that we have a spell-checker for this language
+    if (!this.spellCheckHandler.currentSpellchecker) {
+      return menu;
+    }
+
+    // Ensure that we have valid corrections for that word
+    let corrections = await this.spellCheckHandler.getCorrectionsForMisspelling(menuInfo.misspelledWord);
+    if (!corrections || !corrections.length) {
+      return menu;
+    }
+
+    corrections.forEach((correction) =&gt; {
+      let item = new MenuItem({
+        label: correction,
+        click: () =&gt; target.replaceMisspelling(correction)
+      });
+
+      menu.append(item);
+    });
+
+    this.addSeparator(menu);
+
+    // Gate learning words based on OS support. At some point we can manage a
+    // custom dictionary for Hunspell, but today is not that day
+    if (process.platform === &apos;darwin&apos;) {
+      let learnWord = new MenuItem({
+        label: `Add to Dictionary`,
+        click: async () =&gt; {
+          // NB: This is a gross fix to invalidate the spelling underline,
+          // refer to https://github.com/tinyspeck/slack-winssb/issues/354
+          target.replaceMisspelling(menuInfo.selection);
+
+          try {
+            await this.spellChecker.add(menuInfo.misspelledWord);
+          } catch (e) {
+            d(`Failed to add entry to dictionary: ${e.message}`);
+          }
+        }
+      });
+
+      menu.append(learnWord);
+    }
+
+    return menu;
+  }
+
+  /**
+   * Adds search-related menu items.
+   */
+  addSearchItems(menu, menuInfo) {
+    if (!menuInfo.selectionText || menuInfo.selectionText.length &lt; 1) {
+      return menu;
+    }
+
+    let match = menuInfo.selectionText.match(/\w/);
+    if (!match || match.length === 0) {
+      return menu;
+    }
+
+    if (process.platform === &apos;darwin&apos;) {
+      let target = &apos;webContents&apos; in this.windowOrWebView ?
+        this.windowOrWebView.webContents : this.windowOrWebView;
+
+      let lookUpDefinition = new MenuItem({
+        label: `Look Up &#x201C;${menuInfo.selectionText}&#x201D;`,
+        click: () =&gt; target.showDefinitionForSelection()
+      });
+
+      menu.append(lookUpDefinition);
+    }
+
+    let search = new MenuItem({
+      label: &apos;Search with Google&apos;,
+      click: () =&gt; {
+        let url = `https://www.google.com/#q=${encodeURIComponent(menuInfo.selectionText)}`;
+
+        d(`Searching Google using ${url}`);
+        shell.openExternal(url);
+      }
+    });
+
+    menu.append(search);
+    this.addSeparator(menu);
+
+    return menu;
+  }
+
+  /**
+   * Adds &quot;Copy Image&quot; and &quot;Copy Image URL&quot; items when `src` is valid.
+   */
+  addImageItems(menu, menuInfo) {
+    if (!menuInfo.srcURL || menuInfo.srcURL.length === 0) {
+      return menu;
+    }
+
+    let copyImage = new MenuItem({
+      label: &apos;Copy Image&apos;,
+      click: () =&gt; this.convertImageToBase64(menuInfo.srcURL,
+        (dataURL) =&gt; clipboard.writeImage(nativeImage.createFromDataURL(dataURL)))
+    });
+
+    menu.append(copyImage);
+
+    let copyImageUrl = new MenuItem({
+      label: &apos;Copy Image URL&apos;,
+      click: () =&gt; clipboard.writeText(menuInfo.srcURL)
+    });
+
+    menu.append(copyImageUrl);
+    return menu;
+  }
+
+  /**
+   * Adds the Cut menu item
+   */
+  addCut(menu, menuInfo) {
+    let target = &apos;webContents&apos; in this.windowOrWebView ?
+      this.windowOrWebView.webContents : this.windowOrWebView;
+
+    menu.append(new MenuItem({
+      label: &apos;Cut&apos;,
+      accelerator: &apos;CommandOrControl+X&apos;,
+      enabled: menuInfo.editFlags.canCut,
+      click: () =&gt; target.cut()
+    }));
+
+    return menu;
+  }
+
+  /**
+   * Adds the Copy menu item.
+   */
+  addCopy(menu, menuInfo) {
+    let target = &apos;webContents&apos; in this.windowOrWebView ?
+      this.windowOrWebView.webContents : this.windowOrWebView;
+
+    menu.append(new MenuItem({
+      label: &apos;Copy&apos;,
+      accelerator: &apos;CommandOrControl+C&apos;,
+      enabled: menuInfo.editFlags.canCopy,
+      click: () =&gt; target.copy()
+    }));
+
+    return menu;
+  }
+
+  /**
+   * Adds the Paste menu item.
+   */
+  addPaste(menu, menuInfo) {
+    let target = &apos;webContents&apos; in this.windowOrWebView ?
+      this.windowOrWebView.webContents : this.windowOrWebView;
+
+    menu.append(new MenuItem({
+      label: &apos;Paste&apos;,
+      accelerator: &apos;CommandOrControl+V&apos;,
+      enabled: menuInfo.editFlags.canPaste,
+      click: () =&gt; target.paste()
+    }));
+
+    return menu;
+  }
+
+  /**
+   * Adds a separator item.
+   */
+  addSeparator(menu) {
+    menu.append(new MenuItem({type: &apos;separator&apos;}));
+    return menu;
+  }
+
+  /**
+   * Adds the &quot;Inspect Element&quot; menu item.
+   */
+  addInspectElement(menu, menuInfo, needsSeparator=true) {
+    let target = &apos;webContents&apos; in this.windowOrWebView ?
+      this.windowOrWebView.webContents : this.windowOrWebView;
+
+    if (!this.devMode) return menu;
+    if (needsSeparator) this.addSeparator(menu);
+
+    let inspect = new MenuItem({
+      label: &apos;Inspect Element&apos;,
+      click: () =&gt; target.inspectElement(menuInfo.x, menuInfo.y)
+    });
+
+    menu.append(inspect);
+    return menu;
+  }
+
+  /**
+   * Converts an image to a base-64 encoded string.
+   *
+   * @param  {String} url           The image URL
+   * @param  {Function} callback    A callback that will be invoked with the result
+   * @param  {String} outputFormat  The image format to use, defaults to &apos;image/png&apos;
+   */
+  convertImageToBase64(url, callback, outputFormat=&apos;image/png&apos;) {
+    let canvas = document.createElement(&apos;CANVAS&apos;);
+    let ctx = canvas.getContext(&apos;2d&apos;);
+    let img = new Image();
+    img.crossOrigin = &apos;Anonymous&apos;;
+
+    img.onload = () =&gt; {
+      canvas.height = img.height;
+      canvas.width = img.width;
+      ctx.drawImage(img, 0, 0);
+
+      let dataURL = canvas.toDataURL(outputFormat);
+      canvas = null;
+      callback(dataURL);
+    };
+
+    img.src = url;
+  }
+}
+</code></pre>
+
+</div>
+
+<footer class="footer">
+  Generated by <a href="https://esdoc.org">ESDoc<span data-ice="esdocVersion">(0.4.7)</span></a>
+</footer>
+
+<script src="script/search_index.js"></script>
+<script src="script/search.js"></script>
+<script src="script/pretty-print.js"></script>
+<script src="script/inherited-summary.js"></script>
+<script src="script/test-summary.js"></script>
+<script src="script/inner-link.js"></script>
+<script src="script/patch-for-local.js"></script>
+</body>
+</html>

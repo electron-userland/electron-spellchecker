@@ -1,0 +1,1010 @@
+{
+  "type": "Program",
+  "start": 0,
+  "end": 733,
+  "loc": {
+    "start": {
+      "line": 1,
+      "column": 0
+    },
+    "end": {
+      "line": 26,
+      "column": 0
+    }
+  },
+  "sourceType": "module",
+  "body": [
+    {
+      "type": "ImportDeclaration",
+      "start": 0,
+      "end": 56,
+      "loc": {
+        "start": {
+          "line": 1,
+          "column": 0
+        },
+        "end": {
+          "line": 1,
+          "column": 56
+        }
+      },
+      "specifiers": [
+        {
+          "type": "ImportDefaultSpecifier",
+          "start": 7,
+          "end": 25,
+          "loc": {
+            "start": {
+              "line": 1,
+              "column": 7
+            },
+            "end": {
+              "line": 1,
+              "column": 25
+            }
+          },
+          "local": {
+            "type": "Identifier",
+            "start": 7,
+            "end": 25,
+            "loc": {
+              "start": {
+                "line": 1,
+                "column": 7
+              },
+              "end": {
+                "line": 1,
+                "column": 25
+              }
+            },
+            "name": "ContextMenuBuilder"
+          }
+        }
+      ],
+      "importKind": "value",
+      "source": {
+        "type": "Literal",
+        "start": 31,
+        "end": 55,
+        "loc": {
+          "start": {
+            "line": 1,
+            "column": 31
+          },
+          "end": {
+            "line": 1,
+            "column": 55
+          }
+        },
+        "value": "./context-menu-builder",
+        "rawValue": "./context-menu-builder",
+        "raw": "'./context-menu-builder'"
+      }
+    },
+    {
+      "type": "ImportDeclaration",
+      "start": 57,
+      "end": 115,
+      "loc": {
+        "start": {
+          "line": 2,
+          "column": 0
+        },
+        "end": {
+          "line": 2,
+          "column": 58
+        }
+      },
+      "specifiers": [
+        {
+          "type": "ImportDefaultSpecifier",
+          "start": 64,
+          "end": 83,
+          "loc": {
+            "start": {
+              "line": 2,
+              "column": 7
+            },
+            "end": {
+              "line": 2,
+              "column": 26
+            }
+          },
+          "local": {
+            "type": "Identifier",
+            "start": 64,
+            "end": 83,
+            "loc": {
+              "start": {
+                "line": 2,
+                "column": 7
+              },
+              "end": {
+                "line": 2,
+                "column": 26
+              }
+            },
+            "name": "ContextMenuListener"
+          }
+        }
+      ],
+      "importKind": "value",
+      "source": {
+        "type": "Literal",
+        "start": 89,
+        "end": 114,
+        "loc": {
+          "start": {
+            "line": 2,
+            "column": 32
+          },
+          "end": {
+            "line": 2,
+            "column": 57
+          }
+        },
+        "value": "./context-menu-listener",
+        "rawValue": "./context-menu-listener",
+        "raw": "'./context-menu-listener'"
+      }
+    },
+    {
+      "type": "ImportDeclaration",
+      "start": 116,
+      "end": 163,
+      "loc": {
+        "start": {
+          "line": 3,
+          "column": 0
+        },
+        "end": {
+          "line": 3,
+          "column": 47
+        }
+      },
+      "specifiers": [
+        {
+          "type": "ImportDefaultSpecifier",
+          "start": 123,
+          "end": 137,
+          "loc": {
+            "start": {
+              "line": 3,
+              "column": 7
+            },
+            "end": {
+              "line": 3,
+              "column": 21
+            }
+          },
+          "local": {
+            "type": "Identifier",
+            "start": 123,
+            "end": 137,
+            "loc": {
+              "start": {
+                "line": 3,
+                "column": 7
+              },
+              "end": {
+                "line": 3,
+                "column": 21
+              }
+            },
+            "name": "DictionarySync"
+          }
+        }
+      ],
+      "importKind": "value",
+      "source": {
+        "type": "Literal",
+        "start": 143,
+        "end": 162,
+        "loc": {
+          "start": {
+            "line": 3,
+            "column": 27
+          },
+          "end": {
+            "line": 3,
+            "column": 46
+          }
+        },
+        "value": "./dictionary-sync",
+        "rawValue": "./dictionary-sync",
+        "raw": "'./dictionary-sync'"
+      }
+    },
+    {
+      "type": "ImportDeclaration",
+      "start": 164,
+      "end": 218,
+      "loc": {
+        "start": {
+          "line": 4,
+          "column": 0
+        },
+        "end": {
+          "line": 4,
+          "column": 54
+        }
+      },
+      "specifiers": [
+        {
+          "type": "ImportDefaultSpecifier",
+          "start": 171,
+          "end": 188,
+          "loc": {
+            "start": {
+              "line": 4,
+              "column": 7
+            },
+            "end": {
+              "line": 4,
+              "column": 24
+            }
+          },
+          "local": {
+            "type": "Identifier",
+            "start": 171,
+            "end": 188,
+            "loc": {
+              "start": {
+                "line": 4,
+                "column": 7
+              },
+              "end": {
+                "line": 4,
+                "column": 24
+              }
+            },
+            "name": "SpellCheckHandler"
+          }
+        }
+      ],
+      "importKind": "value",
+      "source": {
+        "type": "Literal",
+        "start": 194,
+        "end": 217,
+        "loc": {
+          "start": {
+            "line": 4,
+            "column": 30
+          },
+          "end": {
+            "line": 4,
+            "column": 53
+          }
+        },
+        "value": "./spell-check-handler",
+        "rawValue": "./spell-check-handler",
+        "raw": "'./spell-check-handler'"
+      },
+      "trailingComments": [
+        {
+          "type": "Block",
+          "value": "*\n * Overrides the default logging function (the `debug` library) with another \n * logger.\n *\n * @param {Function}  fn    The `console.log` like function that will write debug\n *                          information to.\n ",
+          "start": 220,
+          "end": 445,
+          "loc": {
+            "start": {
+              "line": 6,
+              "column": 0
+            },
+            "end": {
+              "line": 12,
+              "column": 3
+            }
+          },
+          "range": [
+            220,
+            445
+          ]
+        }
+      ]
+    },
+    {
+      "type": "FunctionDeclaration",
+      "start": 446,
+      "end": 607,
+      "loc": {
+        "start": {
+          "line": 13,
+          "column": 0
+        },
+        "end": {
+          "line": 17,
+          "column": 1
+        }
+      },
+      "id": {
+        "type": "Identifier",
+        "start": 455,
+        "end": 470,
+        "loc": {
+          "start": {
+            "line": 13,
+            "column": 9
+          },
+          "end": {
+            "line": 13,
+            "column": 24
+          }
+        },
+        "name": "setGlobalLogger",
+        "leadingComments": null
+      },
+      "generator": false,
+      "expression": false,
+      "async": false,
+      "params": [
+        {
+          "type": "Identifier",
+          "start": 471,
+          "end": 473,
+          "loc": {
+            "start": {
+              "line": 13,
+              "column": 25
+            },
+            "end": {
+              "line": 13,
+              "column": 27
+            }
+          },
+          "name": "fn"
+        }
+      ],
+      "body": {
+        "type": "BlockStatement",
+        "start": 475,
+        "end": 607,
+        "loc": {
+          "start": {
+            "line": 13,
+            "column": 29
+          },
+          "end": {
+            "line": 17,
+            "column": 1
+          }
+        },
+        "body": [
+          {
+            "type": "ForOfStatement",
+            "start": 479,
+            "end": 605,
+            "loc": {
+              "start": {
+                "line": 14,
+                "column": 2
+              },
+              "end": {
+                "line": 16,
+                "column": 3
+              }
+            },
+            "left": {
+              "type": "VariableDeclaration",
+              "start": 484,
+              "end": 493,
+              "loc": {
+                "start": {
+                  "line": 14,
+                  "column": 7
+                },
+                "end": {
+                  "line": 14,
+                  "column": 16
+                }
+              },
+              "declarations": [
+                {
+                  "type": "VariableDeclarator",
+                  "start": 488,
+                  "end": 493,
+                  "loc": {
+                    "start": {
+                      "line": 14,
+                      "column": 11
+                    },
+                    "end": {
+                      "line": 14,
+                      "column": 16
+                    }
+                  },
+                  "id": {
+                    "type": "Identifier",
+                    "start": 488,
+                    "end": 493,
+                    "loc": {
+                      "start": {
+                        "line": 14,
+                        "column": 11
+                      },
+                      "end": {
+                        "line": 14,
+                        "column": 16
+                      }
+                    },
+                    "name": "klass"
+                  },
+                  "init": null
+                }
+              ],
+              "kind": "let"
+            },
+            "right": {
+              "type": "ArrayExpression",
+              "start": 497,
+              "end": 573,
+              "loc": {
+                "start": {
+                  "line": 14,
+                  "column": 20
+                },
+                "end": {
+                  "line": 14,
+                  "column": 96
+                }
+              },
+              "elements": [
+                {
+                  "type": "Identifier",
+                  "start": 498,
+                  "end": 516,
+                  "loc": {
+                    "start": {
+                      "line": 14,
+                      "column": 21
+                    },
+                    "end": {
+                      "line": 14,
+                      "column": 39
+                    }
+                  },
+                  "name": "ContextMenuBuilder"
+                },
+                {
+                  "type": "Identifier",
+                  "start": 518,
+                  "end": 537,
+                  "loc": {
+                    "start": {
+                      "line": 14,
+                      "column": 41
+                    },
+                    "end": {
+                      "line": 14,
+                      "column": 60
+                    }
+                  },
+                  "name": "ContextMenuListener"
+                },
+                {
+                  "type": "Identifier",
+                  "start": 539,
+                  "end": 553,
+                  "loc": {
+                    "start": {
+                      "line": 14,
+                      "column": 62
+                    },
+                    "end": {
+                      "line": 14,
+                      "column": 76
+                    }
+                  },
+                  "name": "DictionarySync"
+                },
+                {
+                  "type": "Identifier",
+                  "start": 555,
+                  "end": 572,
+                  "loc": {
+                    "start": {
+                      "line": 14,
+                      "column": 78
+                    },
+                    "end": {
+                      "line": 14,
+                      "column": 95
+                    }
+                  },
+                  "name": "SpellCheckHandler"
+                }
+              ]
+            },
+            "body": {
+              "type": "BlockStatement",
+              "start": 575,
+              "end": 605,
+              "loc": {
+                "start": {
+                  "line": 14,
+                  "column": 98
+                },
+                "end": {
+                  "line": 16,
+                  "column": 3
+                }
+              },
+              "body": [
+                {
+                  "type": "ExpressionStatement",
+                  "start": 581,
+                  "end": 601,
+                  "loc": {
+                    "start": {
+                      "line": 15,
+                      "column": 4
+                    },
+                    "end": {
+                      "line": 15,
+                      "column": 24
+                    }
+                  },
+                  "expression": {
+                    "type": "CallExpression",
+                    "start": 581,
+                    "end": 600,
+                    "loc": {
+                      "start": {
+                        "line": 15,
+                        "column": 4
+                      },
+                      "end": {
+                        "line": 15,
+                        "column": 23
+                      }
+                    },
+                    "callee": {
+                      "type": "MemberExpression",
+                      "start": 581,
+                      "end": 596,
+                      "loc": {
+                        "start": {
+                          "line": 15,
+                          "column": 4
+                        },
+                        "end": {
+                          "line": 15,
+                          "column": 19
+                        }
+                      },
+                      "object": {
+                        "type": "Identifier",
+                        "start": 581,
+                        "end": 586,
+                        "loc": {
+                          "start": {
+                            "line": 15,
+                            "column": 4
+                          },
+                          "end": {
+                            "line": 15,
+                            "column": 9
+                          }
+                        },
+                        "name": "klass"
+                      },
+                      "property": {
+                        "type": "Identifier",
+                        "start": 587,
+                        "end": 596,
+                        "loc": {
+                          "start": {
+                            "line": 15,
+                            "column": 10
+                          },
+                          "end": {
+                            "line": 15,
+                            "column": 19
+                          }
+                        },
+                        "name": "setLogger"
+                      },
+                      "computed": false
+                    },
+                    "arguments": [
+                      {
+                        "type": "Identifier",
+                        "start": 597,
+                        "end": 599,
+                        "loc": {
+                          "start": {
+                            "line": 15,
+                            "column": 20
+                          },
+                          "end": {
+                            "line": 15,
+                            "column": 22
+                          }
+                        },
+                        "name": "fn"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "leadingComments": [
+        {
+          "type": "Block",
+          "value": "*\n * Overrides the default logging function (the `debug` library) with another \n * logger.\n *\n * @param {Function}  fn    The `console.log` like function that will write debug\n *                          information to.\n ",
+          "start": 220,
+          "end": 445,
+          "loc": {
+            "start": {
+              "line": 6,
+              "column": 0
+            },
+            "end": {
+              "line": 12,
+              "column": 3
+            }
+          },
+          "range": [
+            220,
+            445
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ExpressionStatement",
+      "start": 609,
+      "end": 732,
+      "loc": {
+        "start": {
+          "line": 19,
+          "column": 0
+        },
+        "end": {
+          "line": 25,
+          "column": 2
+        }
+      },
+      "expression": {
+        "type": "AssignmentExpression",
+        "start": 609,
+        "end": 731,
+        "loc": {
+          "start": {
+            "line": 19,
+            "column": 0
+          },
+          "end": {
+            "line": 25,
+            "column": 1
+          }
+        },
+        "operator": "=",
+        "left": {
+          "type": "MemberExpression",
+          "start": 609,
+          "end": 623,
+          "loc": {
+            "start": {
+              "line": 19,
+              "column": 0
+            },
+            "end": {
+              "line": 19,
+              "column": 14
+            }
+          },
+          "object": {
+            "type": "Identifier",
+            "start": 609,
+            "end": 615,
+            "loc": {
+              "start": {
+                "line": 19,
+                "column": 0
+              },
+              "end": {
+                "line": 19,
+                "column": 6
+              }
+            },
+            "name": "module"
+          },
+          "property": {
+            "type": "Identifier",
+            "start": 616,
+            "end": 623,
+            "loc": {
+              "start": {
+                "line": 19,
+                "column": 7
+              },
+              "end": {
+                "line": 19,
+                "column": 14
+              }
+            },
+            "name": "exports"
+          },
+          "computed": false
+        },
+        "right": {
+          "type": "ObjectExpression",
+          "start": 626,
+          "end": 731,
+          "loc": {
+            "start": {
+              "line": 19,
+              "column": 17
+            },
+            "end": {
+              "line": 25,
+              "column": 1
+            }
+          },
+          "properties": [
+            {
+              "type": "Property",
+              "start": 630,
+              "end": 648,
+              "loc": {
+                "start": {
+                  "line": 20,
+                  "column": 2
+                },
+                "end": {
+                  "line": 20,
+                  "column": 20
+                }
+              },
+              "method": false,
+              "shorthand": true,
+              "computed": false,
+              "key": {
+                "type": "Identifier",
+                "start": 630,
+                "end": 648,
+                "loc": {
+                  "start": {
+                    "line": 20,
+                    "column": 2
+                  },
+                  "end": {
+                    "line": 20,
+                    "column": 20
+                  }
+                },
+                "name": "ContextMenuBuilder"
+              },
+              "kind": "init",
+              "value": {
+                "type": "Identifier",
+                "start": 630,
+                "end": 648,
+                "loc": {
+                  "start": {
+                    "line": 20,
+                    "column": 2
+                  },
+                  "end": {
+                    "line": 20,
+                    "column": 20
+                  }
+                },
+                "name": "ContextMenuBuilder"
+              }
+            },
+            {
+              "type": "Property",
+              "start": 652,
+              "end": 671,
+              "loc": {
+                "start": {
+                  "line": 21,
+                  "column": 2
+                },
+                "end": {
+                  "line": 21,
+                  "column": 21
+                }
+              },
+              "method": false,
+              "shorthand": true,
+              "computed": false,
+              "key": {
+                "type": "Identifier",
+                "start": 652,
+                "end": 671,
+                "loc": {
+                  "start": {
+                    "line": 21,
+                    "column": 2
+                  },
+                  "end": {
+                    "line": 21,
+                    "column": 21
+                  }
+                },
+                "name": "ContextMenuListener"
+              },
+              "kind": "init",
+              "value": {
+                "type": "Identifier",
+                "start": 652,
+                "end": 671,
+                "loc": {
+                  "start": {
+                    "line": 21,
+                    "column": 2
+                  },
+                  "end": {
+                    "line": 21,
+                    "column": 21
+                  }
+                },
+                "name": "ContextMenuListener"
+              }
+            },
+            {
+              "type": "Property",
+              "start": 675,
+              "end": 689,
+              "loc": {
+                "start": {
+                  "line": 22,
+                  "column": 2
+                },
+                "end": {
+                  "line": 22,
+                  "column": 16
+                }
+              },
+              "method": false,
+              "shorthand": true,
+              "computed": false,
+              "key": {
+                "type": "Identifier",
+                "start": 675,
+                "end": 689,
+                "loc": {
+                  "start": {
+                    "line": 22,
+                    "column": 2
+                  },
+                  "end": {
+                    "line": 22,
+                    "column": 16
+                  }
+                },
+                "name": "DictionarySync"
+              },
+              "kind": "init",
+              "value": {
+                "type": "Identifier",
+                "start": 675,
+                "end": 689,
+                "loc": {
+                  "start": {
+                    "line": 22,
+                    "column": 2
+                  },
+                  "end": {
+                    "line": 22,
+                    "column": 16
+                  }
+                },
+                "name": "DictionarySync"
+              }
+            },
+            {
+              "type": "Property",
+              "start": 693,
+              "end": 710,
+              "loc": {
+                "start": {
+                  "line": 23,
+                  "column": 2
+                },
+                "end": {
+                  "line": 23,
+                  "column": 19
+                }
+              },
+              "method": false,
+              "shorthand": true,
+              "computed": false,
+              "key": {
+                "type": "Identifier",
+                "start": 693,
+                "end": 710,
+                "loc": {
+                  "start": {
+                    "line": 23,
+                    "column": 2
+                  },
+                  "end": {
+                    "line": 23,
+                    "column": 19
+                  }
+                },
+                "name": "SpellCheckHandler"
+              },
+              "kind": "init",
+              "value": {
+                "type": "Identifier",
+                "start": 693,
+                "end": 710,
+                "loc": {
+                  "start": {
+                    "line": 23,
+                    "column": 2
+                  },
+                  "end": {
+                    "line": 23,
+                    "column": 19
+                  }
+                },
+                "name": "SpellCheckHandler"
+              }
+            },
+            {
+              "type": "Property",
+              "start": 714,
+              "end": 729,
+              "loc": {
+                "start": {
+                  "line": 24,
+                  "column": 2
+                },
+                "end": {
+                  "line": 24,
+                  "column": 17
+                }
+              },
+              "method": false,
+              "shorthand": true,
+              "computed": false,
+              "key": {
+                "type": "Identifier",
+                "start": 714,
+                "end": 729,
+                "loc": {
+                  "start": {
+                    "line": 24,
+                    "column": 2
+                  },
+                  "end": {
+                    "line": 24,
+                    "column": 17
+                  }
+                },
+                "name": "setGlobalLogger"
+              },
+              "kind": "init",
+              "value": {
+                "type": "Identifier",
+                "start": 714,
+                "end": 729,
+                "loc": {
+                  "start": {
+                    "line": 24,
+                    "column": 2
+                  },
+                  "end": {
+                    "line": 24,
+                    "column": 17
+                  }
+                },
+                "name": "setGlobalLogger"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

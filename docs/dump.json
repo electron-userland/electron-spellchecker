@@ -1,0 +1,3453 @@
+[
+  {
+    "__docId__": 0,
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/babel-maybefill.js",
+    "memberof": null,
+    "longname": "src/babel-maybefill.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "if (!('regeneratorRuntime' in global)) {\n  global.regeneratorRuntime = global.regeneratorRuntime || require('regenerator-runtime');\n}\n"
+  },
+  {
+    "__docId__": 1,
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/context-menu-builder.js",
+    "memberof": null,
+    "longname": "src/context-menu-builder.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import {clipboard, nativeImage, remote, shell} from 'electron';\n\nconst {Menu, MenuItem} = remote;\n\nlet d = require('debug-electron')('electron-spellchecker:context-menu-builder');\n\n/**\n * ContextMenuBuilder creates context menus based on the content clicked - this\n * information is derived from \n * https://github.com/electron/electron/blob/master/docs/api/web-contents.md#event-context-menu,\n * which we use to generate the menu. We also use the spell-check information to\n * generate suggestions.\n */\nexport default class ContextMenuBuilder {\n  /**\n   * Creates an instance of ContextMenuBuilder\n   * \n   * @param  {SpellCheckHandler} spellCheckHandler  The spell checker to generate\n   *                                                recommendations for.\n   * @param  {BrowserWindow|WebView} windowOrWebView  The hosting window/WebView\n   * @param  {Boolean} debugMode    If true, display the \"Inspect Element\" menu item.\n   */\n  constructor(spellCheckHandler, windowOrWebView=null, debugMode=false) {\n    this.spellCheckHandler = spellCheckHandler;\n    this.windowOrWebView = windowOrWebView || remote.getCurrentWindow();\n    this.debugMode = debugMode;\n    this.menu = null;\n  }\n\n  /**\n   * Override the default logger for this class. You probably want to use\n   * {{setGlobalLogger}} instead\n   * \n   * @param {Function} fn   The function which will operate like console.log\n   */\n  static setLogger(fn) {\n    d = fn;\n  }\n\n  /**\n   * Shows a popup menu given the information returned from the context-menu \n   * event. This is probably the only method you need to call in this class.\n   * \n   * @param  {Object} contextInfo   The object returned from the 'context-menu'\n   *                                Electron event.\n   *                                \n   * @return {Promise}              Completion\n   */\n  async showPopupMenu(contextInfo) {\n    let menu = await this.buildMenuForElement(contextInfo);\n\n    // Opening a menu blocks the renderer process, which is definitely not\n    // suitable for running tests\n    if (!menu) return;\n    menu.popup(remote.getCurrentWindow());\n  }\n\n  /**\n   * Builds a context menu specific to the given info that _would_ be shown \n   * immediately by {{showPopupMenu}}. Use this to add your own menu items to\n   * the list but use most of the default behavior.\n   *\n   * @return {Promise<Menu>}      The newly created `Menu`\n   */\n  async buildMenuForElement(info) {\n    d(`Got context menu event with args: ${JSON.stringify(info)}`);\n\n    if (info.linkURL && info.linkURL.length > 0) {\n      return this.buildMenuForLink(info);\n    }\n\n    if (info.hasImageContents && info.srcURL && info.srcURL.length > 1) {\n      return this.buildMenuForImage(info);\n    }\n\n    if (info.isEditable || (info.inputFieldType && info.inputFieldType !== 'none')) {\n      return await this.buildMenuForTextInput(info);\n    }\n\n    return this.buildMenuForText(info);\n  }\n\n  /**\n   * Builds a menu applicable to a text input field.\n   *\n   * @return {Menu}  The `Menu`\n   */\n  async buildMenuForTextInput(menuInfo) {\n    let menu = new Menu();\n\n    await this.addSpellingItems(menu, menuInfo);\n    this.addSearchItems(menu, menuInfo);\n\n    this.addCut(menu, menuInfo);\n    this.addCopy(menu, menuInfo);\n    this.addPaste(menu, menuInfo);\n    this.addInspectElement(menu, menuInfo);\n\n    return menu;\n  }\n\n  /**\n   * Builds a menu applicable to a link element.\n   *\n   * @return {Menu}  The `Menu`\n   */\n  buildMenuForLink(menuInfo) {\n    let menu = new Menu();\n    let isEmailAddress = menuInfo.linkURL.startsWith('mailto:');\n\n    let copyLink = new MenuItem({\n      label: isEmailAddress ? 'Copy Email Address' : 'Copy Link',\n      click: () => {\n        // Omit the mailto: portion of the link; we just want the address\n        clipboard.writeText(isEmailAddress ?\n          menuInfo.linkText : menuInfo.linkURL);\n      }\n    });\n\n    let openLink = new MenuItem({\n      label: 'Open Link',\n      click: () => {\n        d(`Navigating to: ${menuInfo.linkURL}`);\n        shell.openExternal(menuInfo.linkURL);\n      }\n    });\n\n    menu.append(copyLink);\n    menu.append(openLink);\n\n    this.addSeparator(menu);\n\n    this.addImageItems(menu, menuInfo);\n    this.addInspectElement(menu, menuInfo);\n\n    return menu;\n  }\n\n  /**\n   * Builds a menu applicable to a text field.\n   *\n   * @return {Menu}  The `Menu`\n   */\n  buildMenuForText(menuInfo) {\n    let menu = new Menu();\n\n    this.addSearchItems(menu, menuInfo);\n    this.addCopy(menu, menuInfo);\n    this.addInspectElement(menu, menuInfo);\n\n    return menu;\n  }\n\n  /**\n   * Builds a menu applicable to an image.\n   *\n   * @return {Menu}  The `Menu`\n   */\n  buildMenuForImage(menuInfo) {\n    let menu = new Menu();\n\n    this.addImageItems(menu, menuInfo);\n    this.addInspectElement(menu, menuInfo);\n    return menu;\n  }\n\n  /**\n   * Checks if the current text selection contains a single misspelled word and\n   * if so, adds suggested spellings as individual menu items.\n   */\n  async addSpellingItems(menu, menuInfo) {\n    let target = 'webContents' in this.windowOrWebView ?\n      this.windowOrWebView.webContents : this.windowOrWebView;\n\n    if (!menuInfo.misspelledWord || menuInfo.misspelledWord.length < 1) {\n      return menu;\n    }\n\n    // Ensure that we have a spell-checker for this language\n    if (!this.spellCheckHandler.currentSpellchecker) {\n      return menu;\n    }\n\n    // Ensure that we have valid corrections for that word\n    let corrections = await this.spellCheckHandler.getCorrectionsForMisspelling(menuInfo.misspelledWord);\n    if (!corrections || !corrections.length) {\n      return menu;\n    }\n\n    corrections.forEach((correction) => {\n      let item = new MenuItem({\n        label: correction,\n        click: () => target.replaceMisspelling(correction)\n      });\n\n      menu.append(item);\n    });\n\n    this.addSeparator(menu);\n\n    // Gate learning words based on OS support. At some point we can manage a\n    // custom dictionary for Hunspell, but today is not that day\n    if (process.platform === 'darwin') {\n      let learnWord = new MenuItem({\n        label: `Add to Dictionary`,\n        click: async () => {\n          // NB: This is a gross fix to invalidate the spelling underline,\n          // refer to https://github.com/tinyspeck/slack-winssb/issues/354\n          target.replaceMisspelling(menuInfo.selection);\n\n          try {\n            await this.spellChecker.add(menuInfo.misspelledWord);\n          } catch (e) {\n            d(`Failed to add entry to dictionary: ${e.message}`);\n          }\n        }\n      });\n\n      menu.append(learnWord);\n    }\n\n    return menu;\n  }\n\n  /**\n   * Adds search-related menu items.\n   */\n  addSearchItems(menu, menuInfo) {\n    if (!menuInfo.selectionText || menuInfo.selectionText.length < 1) {\n      return menu;\n    }\n\n    let match = menuInfo.selectionText.match(/\\w/);\n    if (!match || match.length === 0) {\n      return menu;\n    }\n\n    if (process.platform === 'darwin') {\n      let target = 'webContents' in this.windowOrWebView ?\n        this.windowOrWebView.webContents : this.windowOrWebView;\n\n      let lookUpDefinition = new MenuItem({\n        label: `Look Up “${menuInfo.selectionText}”`,\n        click: () => target.showDefinitionForSelection()\n      });\n\n      menu.append(lookUpDefinition);\n    }\n\n    let search = new MenuItem({\n      label: 'Search with Google',\n      click: () => {\n        let url = `https://www.google.com/#q=${encodeURIComponent(menuInfo.selectionText)}`;\n\n        d(`Searching Google using ${url}`);\n        shell.openExternal(url);\n      }\n    });\n\n    menu.append(search);\n    this.addSeparator(menu);\n\n    return menu;\n  }\n\n  /**\n   * Adds \"Copy Image\" and \"Copy Image URL\" items when `src` is valid.\n   */\n  addImageItems(menu, menuInfo) {\n    if (!menuInfo.srcURL || menuInfo.srcURL.length === 0) {\n      return menu;\n    }\n\n    let copyImage = new MenuItem({\n      label: 'Copy Image',\n      click: () => this.convertImageToBase64(menuInfo.srcURL,\n        (dataURL) => clipboard.writeImage(nativeImage.createFromDataURL(dataURL)))\n    });\n\n    menu.append(copyImage);\n\n    let copyImageUrl = new MenuItem({\n      label: 'Copy Image URL',\n      click: () => clipboard.writeText(menuInfo.srcURL)\n    });\n\n    menu.append(copyImageUrl);\n    return menu;\n  }\n\n  /**\n   * Adds the Cut menu item\n   */\n  addCut(menu, menuInfo) {\n    let target = 'webContents' in this.windowOrWebView ?\n      this.windowOrWebView.webContents : this.windowOrWebView;\n\n    menu.append(new MenuItem({\n      label: 'Cut',\n      accelerator: 'CommandOrControl+X',\n      enabled: menuInfo.editFlags.canCut,\n      click: () => target.cut()\n    }));\n\n    return menu;\n  }\n\n  /**\n   * Adds the Copy menu item.\n   */\n  addCopy(menu, menuInfo) {\n    let target = 'webContents' in this.windowOrWebView ?\n      this.windowOrWebView.webContents : this.windowOrWebView;\n\n    menu.append(new MenuItem({\n      label: 'Copy',\n      accelerator: 'CommandOrControl+C',\n      enabled: menuInfo.editFlags.canCopy,\n      click: () => target.copy()\n    }));\n\n    return menu;\n  }\n\n  /**\n   * Adds the Paste menu item.\n   */\n  addPaste(menu, menuInfo) {\n    let target = 'webContents' in this.windowOrWebView ?\n      this.windowOrWebView.webContents : this.windowOrWebView;\n\n    menu.append(new MenuItem({\n      label: 'Paste',\n      accelerator: 'CommandOrControl+V',\n      enabled: menuInfo.editFlags.canPaste,\n      click: () => target.paste()\n    }));\n\n    return menu;\n  }\n\n  /**\n   * Adds a separator item.\n   */\n  addSeparator(menu) {\n    menu.append(new MenuItem({type: 'separator'}));\n    return menu;\n  }\n\n  /**\n   * Adds the \"Inspect Element\" menu item.\n   */\n  addInspectElement(menu, menuInfo, needsSeparator=true) {\n    let target = 'webContents' in this.windowOrWebView ?\n      this.windowOrWebView.webContents : this.windowOrWebView;\n\n    if (!this.devMode) return menu;\n    if (needsSeparator) this.addSeparator(menu);\n\n    let inspect = new MenuItem({\n      label: 'Inspect Element',\n      click: () => target.inspectElement(menuInfo.x, menuInfo.y)\n    });\n\n    menu.append(inspect);\n    return menu;\n  }\n\n  /**\n   * Converts an image to a base-64 encoded string.\n   *\n   * @param  {String} url           The image URL\n   * @param  {Function} callback    A callback that will be invoked with the result\n   * @param  {String} outputFormat  The image format to use, defaults to 'image/png'\n   */\n  convertImageToBase64(url, callback, outputFormat='image/png') {\n    let canvas = document.createElement('CANVAS');\n    let ctx = canvas.getContext('2d');\n    let img = new Image();\n    img.crossOrigin = 'Anonymous';\n\n    img.onload = () => {\n      canvas.height = img.height;\n      canvas.width = img.width;\n      ctx.drawImage(img, 0, 0);\n\n      let dataURL = canvas.toDataURL(outputFormat);\n      canvas = null;\n      callback(dataURL);\n    };\n\n    img.src = url;\n  }\n}\n"
+  },
+  {
+    "__docId__": 2,
+    "kind": "variable",
+    "static": true,
+    "variation": null,
+    "name": "Menu",
+    "memberof": "src/context-menu-builder.js",
+    "longname": "src/context-menu-builder.js~Menu",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/context-menu-builder.js",
+    "importStyle": null,
+    "description": null,
+    "lineNumber": 3,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 3,
+    "kind": "variable",
+    "static": true,
+    "variation": null,
+    "name": "d",
+    "memberof": "src/context-menu-builder.js",
+    "longname": "src/context-menu-builder.js~d",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/context-menu-builder.js",
+    "importStyle": null,
+    "description": null,
+    "lineNumber": 5,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 4,
+    "kind": "class",
+    "static": true,
+    "variation": null,
+    "name": "ContextMenuBuilder",
+    "memberof": "src/context-menu-builder.js",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder",
+    "access": null,
+    "export": true,
+    "importPath": "electron-spellchecker/src/context-menu-builder.js",
+    "importStyle": "ContextMenuBuilder",
+    "description": "ContextMenuBuilder creates context menus based on the content clicked - this\ninformation is derived from \nhttps://github.com/electron/electron/blob/master/docs/api/web-contents.md#event-context-menu,\nwhich we use to generate the menu. We also use the spell-check information to\ngenerate suggestions.",
+    "lineNumber": 14,
+    "interface": false
+  },
+  {
+    "__docId__": 5,
+    "kind": "constructor",
+    "static": false,
+    "variation": null,
+    "name": "constructor",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#constructor",
+    "access": null,
+    "description": "Creates an instance of ContextMenuBuilder",
+    "lineNumber": 23,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "SpellCheckHandler"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "spellCheckHandler",
+        "description": "The spell checker to generate\n                                               recommendations for."
+      },
+      {
+        "nullable": null,
+        "types": [
+          "BrowserWindow",
+          "WebView"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "windowOrWebView",
+        "description": "The hosting window/WebView"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Boolean"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "debugMode",
+        "description": "If true, display the \"Inspect Element\" menu item."
+      }
+    ],
+    "generator": false
+  },
+  {
+    "__docId__": 6,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "spellCheckHandler",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#spellCheckHandler",
+    "access": null,
+    "description": null,
+    "lineNumber": 24,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 7,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "windowOrWebView",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#windowOrWebView",
+    "access": null,
+    "description": null,
+    "lineNumber": 25,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 8,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "debugMode",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#debugMode",
+    "access": null,
+    "description": null,
+    "lineNumber": 26,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 9,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "menu",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#menu",
+    "access": null,
+    "description": null,
+    "lineNumber": 27,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 10,
+    "kind": "method",
+    "static": true,
+    "variation": null,
+    "name": "setLogger",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder.setLogger",
+    "access": null,
+    "description": "Override the default logger for this class. You probably want to use\n{{setGlobalLogger}} instead",
+    "lineNumber": 36,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "fn",
+        "description": "The function which will operate like console.log"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "__docId__": 11,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "showPopupMenu",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#showPopupMenu",
+    "access": null,
+    "description": "Shows a popup menu given the information returned from the context-menu \nevent. This is probably the only method you need to call in this class.",
+    "lineNumber": 49,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Object"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "contextInfo",
+        "description": "The object returned from the 'context-menu'\n                               Electron event."
+      }
+    ],
+    "return": {
+      "nullable": null,
+      "types": [
+        "Promise"
+      ],
+      "spread": false,
+      "description": "Completion"
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 12,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "buildMenuForElement",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#buildMenuForElement",
+    "access": null,
+    "description": "Builds a context menu specific to the given info that _would_ be shown \nimmediately by {{showPopupMenu}}. Use this to add your own menu items to\nthe list but use most of the default behavior.",
+    "lineNumber": 65,
+    "params": [
+      {
+        "name": "info",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "nullable": null,
+      "types": [
+        "Menu"
+      ],
+      "spread": false,
+      "description": "The newly created `Menu`"
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 13,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "buildMenuForTextInput",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#buildMenuForTextInput",
+    "access": null,
+    "description": "Builds a menu applicable to a text input field.",
+    "lineNumber": 88,
+    "params": [
+      {
+        "name": "menuInfo",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "nullable": null,
+      "types": [
+        "Menu"
+      ],
+      "spread": false,
+      "description": "The `Menu`"
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 14,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "buildMenuForLink",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#buildMenuForLink",
+    "access": null,
+    "description": "Builds a menu applicable to a link element.",
+    "lineNumber": 107,
+    "params": [
+      {
+        "name": "menuInfo",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "nullable": null,
+      "types": [
+        "Menu"
+      ],
+      "spread": false,
+      "description": "The `Menu`"
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 15,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "buildMenuForText",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#buildMenuForText",
+    "access": null,
+    "description": "Builds a menu applicable to a text field.",
+    "lineNumber": 144,
+    "params": [
+      {
+        "name": "menuInfo",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "nullable": null,
+      "types": [
+        "Menu"
+      ],
+      "spread": false,
+      "description": "The `Menu`"
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 16,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "buildMenuForImage",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#buildMenuForImage",
+    "access": null,
+    "description": "Builds a menu applicable to an image.",
+    "lineNumber": 159,
+    "params": [
+      {
+        "name": "menuInfo",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "nullable": null,
+      "types": [
+        "Menu"
+      ],
+      "spread": false,
+      "description": "The `Menu`"
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 17,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "addSpellingItems",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#addSpellingItems",
+    "access": null,
+    "description": "Checks if the current text selection contains a single misspelled word and\nif so, adds suggested spellings as individual menu items.",
+    "lineNumber": 171,
+    "params": [
+      {
+        "name": "menu",
+        "types": [
+          "*"
+        ]
+      },
+      {
+        "name": "menuInfo",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 18,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "addSearchItems",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#addSearchItems",
+    "access": null,
+    "description": "Adds search-related menu items.",
+    "lineNumber": 228,
+    "params": [
+      {
+        "name": "menu",
+        "types": [
+          "*"
+        ]
+      },
+      {
+        "name": "menuInfo",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 19,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "addImageItems",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#addImageItems",
+    "access": null,
+    "description": "Adds \"Copy Image\" and \"Copy Image URL\" items when `src` is valid.",
+    "lineNumber": 269,
+    "params": [
+      {
+        "name": "menu",
+        "types": [
+          "*"
+        ]
+      },
+      {
+        "name": "menuInfo",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 20,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "addCut",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#addCut",
+    "access": null,
+    "description": "Adds the Cut menu item",
+    "lineNumber": 294,
+    "params": [
+      {
+        "name": "menu",
+        "types": [
+          "*"
+        ]
+      },
+      {
+        "name": "menuInfo",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 21,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "addCopy",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#addCopy",
+    "access": null,
+    "description": "Adds the Copy menu item.",
+    "lineNumber": 311,
+    "params": [
+      {
+        "name": "menu",
+        "types": [
+          "*"
+        ]
+      },
+      {
+        "name": "menuInfo",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 22,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "addPaste",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#addPaste",
+    "access": null,
+    "description": "Adds the Paste menu item.",
+    "lineNumber": 328,
+    "params": [
+      {
+        "name": "menu",
+        "types": [
+          "*"
+        ]
+      },
+      {
+        "name": "menuInfo",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 23,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "addSeparator",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#addSeparator",
+    "access": null,
+    "description": "Adds a separator item.",
+    "lineNumber": 345,
+    "params": [
+      {
+        "name": "menu",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 24,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "addInspectElement",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#addInspectElement",
+    "access": null,
+    "description": "Adds the \"Inspect Element\" menu item.",
+    "lineNumber": 353,
+    "params": [
+      {
+        "name": "menu",
+        "types": [
+          "*"
+        ]
+      },
+      {
+        "name": "menuInfo",
+        "types": [
+          "*"
+        ]
+      },
+      {
+        "name": "needsSeparator",
+        "optional": true,
+        "types": [
+          "boolean"
+        ],
+        "defaultRaw": true,
+        "defaultValue": "true"
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 25,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "convertImageToBase64",
+    "memberof": "src/context-menu-builder.js~ContextMenuBuilder",
+    "longname": "src/context-menu-builder.js~ContextMenuBuilder#convertImageToBase64",
+    "access": null,
+    "description": "Converts an image to a base-64 encoded string.",
+    "lineNumber": 376,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "url",
+        "description": "The image URL"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "A callback that will be invoked with the result"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "outputFormat",
+        "description": "The image format to use, defaults to 'image/png'"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "__docId__": 26,
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/context-menu-listener.js",
+    "memberof": null,
+    "longname": "src/context-menu-listener.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import {remote} from 'electron';\nimport {CompositeDisposable, Observable} from 'rx';\n\nlet d = require('debug-electron')('electron-spellchecker:context-menu-listener');\n\n/**\n * ContextMenuListener will listen to the given window / WebView control and \n * invoke a handler function. This function usually will immediately turn around\n * and invoke {{showPopupMenu}} from {{ContextMenuBuilder}}.\n */\nexport default class ContextMenuListener {\n  /**\n   * Constructs a ContextMenuListener and wires up the events it needs to fire\n   * the callback.\n   *\n   * @param  {Function} handler             The callback that will be invoked \n   *                                        with the 'context-menu' info.\n   * @param  {BrowserWindow|WebView} windowOrWebView  The target, either a\n   *                                                  BrowserWindow or a WebView\n   * @param  {Observable<Object>} contextMenuEvent  Use this for simulating a\n   *                                                ContextMenu event\n   */\n  constructor(handler, windowOrWebView=null, contextMenuEvent=null) {\n    this.disp = new CompositeDisposable();\n\n    if (!contextMenuEvent) {\n      windowOrWebView = windowOrWebView || remote.getCurrentWebContents();\n      let target = 'webContents' in windowOrWebView ?\n        windowOrWebView.webContents : windowOrWebView;\n\n      contextMenuEvent = Observable.fromEvent(target, 'context-menu',\n          (e,p) => { e.preventDefault(); return p; })\n        .map((x) => JSON.parse(JSON.stringify(x)));\n    }\n\n    this.disp.add(contextMenuEvent.subscribe(handler));\n  }\n    \n  /**\n   * Override the default logger for this class. You probably want to use\n   * {{setGlobalLogger}} instead\n   * \n   * @param {Function} fn   The function which will operate like console.log\n   */\n  static setLogger(fn) {\n    d = fn;\n  }\n\n  /**\n   * Disconnect the events that we connected in the Constructor\n   */\n  dispose() {\n    this.disp.dispose();\n  }\n}\n"
+  },
+  {
+    "__docId__": 27,
+    "kind": "variable",
+    "static": true,
+    "variation": null,
+    "name": "d",
+    "memberof": "src/context-menu-listener.js",
+    "longname": "src/context-menu-listener.js~d",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/context-menu-listener.js",
+    "importStyle": null,
+    "description": null,
+    "lineNumber": 4,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 28,
+    "kind": "class",
+    "static": true,
+    "variation": null,
+    "name": "ContextMenuListener",
+    "memberof": "src/context-menu-listener.js",
+    "longname": "src/context-menu-listener.js~ContextMenuListener",
+    "access": null,
+    "export": true,
+    "importPath": "electron-spellchecker/src/context-menu-listener.js",
+    "importStyle": "ContextMenuListener",
+    "description": "ContextMenuListener will listen to the given window / WebView control and \ninvoke a handler function. This function usually will immediately turn around\nand invoke {{showPopupMenu}} from {{ContextMenuBuilder}}.",
+    "lineNumber": 11,
+    "interface": false
+  },
+  {
+    "__docId__": 29,
+    "kind": "constructor",
+    "static": false,
+    "variation": null,
+    "name": "constructor",
+    "memberof": "src/context-menu-listener.js~ContextMenuListener",
+    "longname": "src/context-menu-listener.js~ContextMenuListener#constructor",
+    "access": null,
+    "description": "Constructs a ContextMenuListener and wires up the events it needs to fire\nthe callback.",
+    "lineNumber": 23,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "handler",
+        "description": "The callback that will be invoked \n                                       with the 'context-menu' info."
+      },
+      {
+        "nullable": null,
+        "types": [
+          "BrowserWindow",
+          "WebView"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "windowOrWebView",
+        "description": "The target, either a\n                                                 BrowserWindow or a WebView"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Observable<Object>"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "contextMenuEvent",
+        "description": "Use this for simulating a\n                                               ContextMenu event"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "__docId__": 30,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "disp",
+    "memberof": "src/context-menu-listener.js~ContextMenuListener",
+    "longname": "src/context-menu-listener.js~ContextMenuListener#disp",
+    "access": null,
+    "description": null,
+    "lineNumber": 24,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 31,
+    "kind": "method",
+    "static": true,
+    "variation": null,
+    "name": "setLogger",
+    "memberof": "src/context-menu-listener.js~ContextMenuListener",
+    "longname": "src/context-menu-listener.js~ContextMenuListener.setLogger",
+    "access": null,
+    "description": "Override the default logger for this class. You probably want to use\n{{setGlobalLogger}} instead",
+    "lineNumber": 45,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "fn",
+        "description": "The function which will operate like console.log"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "__docId__": 32,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "dispose",
+    "memberof": "src/context-menu-listener.js~ContextMenuListener",
+    "longname": "src/context-menu-listener.js~ContextMenuListener#dispose",
+    "access": null,
+    "description": "Disconnect the events that we connected in the Constructor",
+    "lineNumber": 52,
+    "params": [],
+    "generator": false
+  },
+  {
+    "__docId__": 33,
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/custom-operators.js",
+    "memberof": null,
+    "longname": "src/custom-operators.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import {Observable, Scheduler} from 'rx';\n\nconst newCoolOperators = {\n  guaranteedThrottle: function (time, scheduler=Scheduler.timeout) {\n    return this\n      .map((x) => Observable.timer(time, scheduler).map(() => x))\n      .switch();\n  }\n};\n\nfor (let key of Object.keys(newCoolOperators)) {\n  Observable.prototype[key] = newCoolOperators[key];\n}\n"
+  },
+  {
+    "__docId__": 34,
+    "kind": "variable",
+    "static": true,
+    "variation": null,
+    "name": "newCoolOperators",
+    "memberof": "src/custom-operators.js",
+    "longname": "src/custom-operators.js~newCoolOperators",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/custom-operators.js",
+    "importStyle": null,
+    "description": null,
+    "lineNumber": 3,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 35,
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/dictionary-sync.js",
+    "memberof": null,
+    "longname": "src/dictionary-sync.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import path from 'path';\nimport mkdirp from 'mkdirp';\nimport {getURLForHunspellDictionary} from './node-spellchecker';\nimport {getInstalledKeyboardLanguages} from 'keyboard-layout';\nimport {Observable} from 'rx';\n\nimport {fs} from './promisify';\nimport {normalizeLanguageCode} from './utility';\n\nlet d = require('debug-electron')('electron-spellchecker:dictionary-sync');\n\nconst app = process.type === 'renderer' ?\n  require('electron').remote.app :\n  require('electron').app;\n\nconst {downloadFileOrUrl} =\n  require('electron-remote').requireTaskPool(require.resolve('electron-remote/remote-ajax'));\n\n/**\n * DictioanrySync handles downloading and saving Hunspell dictionaries. Pass it\n * to {{SpellCheckHandler}} to configure a custom cache directory.\n */\nexport default class DictionarySync {\n  /**\n   * Creates a DictionarySync\n   * \n   * @param  {String} cacheDir    The path to a directory to store dictionaries.\n   *                              If not given, the Electron user data directory\n   *                              will be used.\n   */\n  constructor(cacheDir=null) {\n    this.cacheDir = cacheDir || path.join(app.getPath('userData'), 'dictionaries');\n    mkdirp.sync(this.cacheDir);\n  }\n\n  /**\n   * Override the default logger for this class. You probably want to use\n   * {{setGlobalLogger}} instead\n   * \n   * @param {Function} fn   The function which will operate like console.log\n   */  \n  static setLogger(fn) {\n    d = fn;\n  }\n\n  /**\n   * Loads the dictionary for a given language code, trying first to load a \n   * local version, then downloading it. You probably don't want this method \n   * directly, but the wrapped version \n   * {{loadDictionaryForLanguageWithAlternatives}} which is in {{SpellCheckHandler}}.\n   * \n   * @param  {String} langCode        The language code (i.e. 'en-US')\n   * @param  {Boolean} cacheOnly      If true, don't load the file content into\n   *                                  memory, only download it\n   * \n   * @return {Promise<Buffer|String>}     A Buffer of the file contents if \n   *                                      {{cacheOnly}} is False, or the path to\n   *                                      the file if True.\n   */\n  async loadDictionaryForLanguage(langCode, cacheOnly=false) {\n    d(`Loading dictionary for language ${langCode}`);\n    if (process.platform === 'darwin') return new Buffer([]);\n\n    let lang = normalizeLanguageCode(langCode);\n    let target = path.join(this.cacheDir, `${lang}.bdic`);\n\n    let fileExists = false;\n    try {\n      if (fs.existsSync(target)) {\n        fileExists = true;\n        d(`Returning local copy: ${target}`);\n        let ret = await fs.readFile(target, {});\n      \n        if (ret.length < 64*1024) {\n          throw new Error(\"File exists but is most likely bogus\");\n        }\n      }\n    } catch (e) {\n      d(`Failed to read file ${target}: ${e.message}`);\n    }\n\n    if (fileExists) {\n      try {\n        await fs.unlink(target);\n      } catch (e) {\n        d(\"Can't clear out file, bailing\");\n        throw e;\n      }\n    }\n\n    let url = getURLForHunspellDictionary(lang);\n    d(`Actually downloading ${url}`);\n    await downloadFileOrUrl(url, target);\n\n    if (cacheOnly) return target;\n\n    let ret = await fs.readFile(target, {});\n    if (ret.length < 64*1024) {\n      throw new Error(\"File exists but is most likely bogus\");\n    }\n\n    return ret;\n  }\n\n  /**\n   * Pre-download dictionaries for languages that the user is likely to speak \n   * (based usually on their keyboard layouts). Note that this method only works\n   * on Windows currently.\n   * \n   * @param  {Array<String>} languageList     Override the list of languages to\n   *                                          download, for testing.\n   *\n   * @return {Promise<Array<String>>}         A list of strings to dictionaries \n   *                                          that were downloaded.\n   */\n  preloadDictionaries(languageList=null) {\n    return Observable.from(languageList || getInstalledKeyboardLanguages())\n      .flatMap((x) => Observable.fromPromise(this.loadDictionaryForLanguage(x, true)))\n      .reduce((acc,x) => { acc.push(x); return acc; }, [])\n      .toPromise();\n  }\n}\n"
+  },
+  {
+    "__docId__": 36,
+    "kind": "variable",
+    "static": true,
+    "variation": null,
+    "name": "d",
+    "memberof": "src/dictionary-sync.js",
+    "longname": "src/dictionary-sync.js~d",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/dictionary-sync.js",
+    "importStyle": null,
+    "description": null,
+    "lineNumber": 10,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 37,
+    "kind": "variable",
+    "static": true,
+    "variation": null,
+    "name": "app",
+    "memberof": "src/dictionary-sync.js",
+    "longname": "src/dictionary-sync.js~app",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/dictionary-sync.js",
+    "importStyle": null,
+    "description": null,
+    "lineNumber": 12,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 38,
+    "kind": "variable",
+    "static": true,
+    "variation": null,
+    "name": "downloadFileOrUrl",
+    "memberof": "src/dictionary-sync.js",
+    "longname": "src/dictionary-sync.js~downloadFileOrUrl",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/dictionary-sync.js",
+    "importStyle": null,
+    "description": null,
+    "lineNumber": 16,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 39,
+    "kind": "class",
+    "static": true,
+    "variation": null,
+    "name": "DictionarySync",
+    "memberof": "src/dictionary-sync.js",
+    "longname": "src/dictionary-sync.js~DictionarySync",
+    "access": null,
+    "export": true,
+    "importPath": "electron-spellchecker/src/dictionary-sync.js",
+    "importStyle": "DictionarySync",
+    "description": "DictioanrySync handles downloading and saving Hunspell dictionaries. Pass it\nto {{SpellCheckHandler}} to configure a custom cache directory.",
+    "lineNumber": 23,
+    "interface": false
+  },
+  {
+    "__docId__": 40,
+    "kind": "constructor",
+    "static": false,
+    "variation": null,
+    "name": "constructor",
+    "memberof": "src/dictionary-sync.js~DictionarySync",
+    "longname": "src/dictionary-sync.js~DictionarySync#constructor",
+    "access": null,
+    "description": "Creates a DictionarySync",
+    "lineNumber": 31,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "cacheDir",
+        "description": "The path to a directory to store dictionaries.\n                             If not given, the Electron user data directory\n                             will be used."
+      }
+    ],
+    "generator": false
+  },
+  {
+    "__docId__": 41,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "cacheDir",
+    "memberof": "src/dictionary-sync.js~DictionarySync",
+    "longname": "src/dictionary-sync.js~DictionarySync#cacheDir",
+    "access": null,
+    "description": null,
+    "lineNumber": 32,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 42,
+    "kind": "method",
+    "static": true,
+    "variation": null,
+    "name": "setLogger",
+    "memberof": "src/dictionary-sync.js~DictionarySync",
+    "longname": "src/dictionary-sync.js~DictionarySync.setLogger",
+    "access": null,
+    "description": "Override the default logger for this class. You probably want to use\n{{setGlobalLogger}} instead",
+    "lineNumber": 42,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "fn",
+        "description": "The function which will operate like console.log"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "__docId__": 43,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "loadDictionaryForLanguage",
+    "memberof": "src/dictionary-sync.js~DictionarySync",
+    "longname": "src/dictionary-sync.js~DictionarySync#loadDictionaryForLanguage",
+    "access": null,
+    "description": "Loads the dictionary for a given language code, trying first to load a \nlocal version, then downloading it. You probably don't want this method \ndirectly, but the wrapped version \n{{loadDictionaryForLanguageWithAlternatives}} which is in {{SpellCheckHandler}}.",
+    "lineNumber": 60,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "langCode",
+        "description": "The language code (i.e. 'en-US')"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Boolean"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "cacheOnly",
+        "description": "If true, don't load the file content into\n                                 memory, only download it"
+      }
+    ],
+    "return": {
+      "nullable": null,
+      "types": [
+        "Buffer",
+        "String"
+      ],
+      "spread": false,
+      "description": "A Buffer of the file contents if \n                                     {{cacheOnly}} is False, or the path to\n                                     the file if True."
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 44,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "preloadDictionaries",
+    "memberof": "src/dictionary-sync.js~DictionarySync",
+    "longname": "src/dictionary-sync.js~DictionarySync#preloadDictionaries",
+    "access": null,
+    "description": "Pre-download dictionaries for languages that the user is likely to speak \n(based usually on their keyboard layouts). Note that this method only works\non Windows currently.",
+    "lineNumber": 116,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Array<String>"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "languageList",
+        "description": "Override the list of languages to\n                                         download, for testing."
+      }
+    ],
+    "return": {
+      "nullable": null,
+      "types": [
+        "Array<String>"
+      ],
+      "spread": false,
+      "description": "A list of strings to dictionaries \n                                         that were downloaded."
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 45,
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/fake-local-storage.js",
+    "memberof": null,
+    "longname": "src/fake-local-storage.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "export default class FakeLocalStorage {\n  constructor() {\n    this.ls = {};\n  }\n  \n  getItem(item) {\n    return this.ls[item];\n  }\n  \n  setItem(item, val) {\n    this.ls[item] = val;\n  }\n}\n"
+  },
+  {
+    "__docId__": 46,
+    "kind": "class",
+    "static": true,
+    "variation": null,
+    "name": "FakeLocalStorage",
+    "memberof": "src/fake-local-storage.js",
+    "longname": "src/fake-local-storage.js~FakeLocalStorage",
+    "access": null,
+    "export": true,
+    "importPath": "electron-spellchecker/src/fake-local-storage.js",
+    "importStyle": "FakeLocalStorage",
+    "description": null,
+    "lineNumber": 1,
+    "undocument": true,
+    "interface": false
+  },
+  {
+    "__docId__": 47,
+    "kind": "constructor",
+    "static": false,
+    "variation": null,
+    "name": "constructor",
+    "memberof": "src/fake-local-storage.js~FakeLocalStorage",
+    "longname": "src/fake-local-storage.js~FakeLocalStorage#constructor",
+    "access": null,
+    "description": null,
+    "lineNumber": 2,
+    "undocument": true,
+    "params": [],
+    "generator": false
+  },
+  {
+    "__docId__": 48,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "ls",
+    "memberof": "src/fake-local-storage.js~FakeLocalStorage",
+    "longname": "src/fake-local-storage.js~FakeLocalStorage#ls",
+    "access": null,
+    "description": null,
+    "lineNumber": 3,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 49,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "getItem",
+    "memberof": "src/fake-local-storage.js~FakeLocalStorage",
+    "longname": "src/fake-local-storage.js~FakeLocalStorage#getItem",
+    "access": null,
+    "description": null,
+    "lineNumber": 6,
+    "undocument": true,
+    "params": [
+      {
+        "name": "item",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 50,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "setItem",
+    "memberof": "src/fake-local-storage.js~FakeLocalStorage",
+    "longname": "src/fake-local-storage.js~FakeLocalStorage#setItem",
+    "access": null,
+    "description": null,
+    "lineNumber": 10,
+    "undocument": true,
+    "params": [
+      {
+        "name": "item",
+        "types": [
+          "*"
+        ]
+      },
+      {
+        "name": "val",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "generator": false
+  },
+  {
+    "__docId__": 51,
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/fallback-locales.js",
+    "memberof": null,
+    "longname": "src/fallback-locales.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "// Defines the fallback locales for a given language (i.e. if we detect the given\n// language but have no further indication as to what locale the user is in, we\n// will try this one instead). Data is mostly sourced from \n// http://lh.2xlibre.net/locales\n\nmodule.exports = {\n  \"aa\": \"aa-ET\",\n  \"af\": \"af-ZA\",\n  \"ak\": \"ak-GH\",\n  \"am\": \"am-ET\",\n  \"an\": \"an-ES\",\n  \"ar\": \"ar-MA\",\n  \"as\": \"as-IN\",\n  \"ay\": \"ay-PE\",\n  \"az\": \"az-AZ\",\n  \"be\": \"be-BY\",\n  \"bg\": \"bg-BG\",\n  \"bi\": \"bi-TV\",\n  \"bn\": \"bn-BD\",\n  \"bo\": \"bo-CN\",\n  \"br\": \"br-FR\",\n  \"bs\": \"bs-BA\",\n  \"ca\": \"ca-ES\",\n  \"ce\": \"ce-RU\",\n  \"cs\": \"cs-CZ\",\n  \"cv\": \"cv-RU\",\n  \"cy\": \"cy-GB\",\n  \"da\": \"da-DK\",\n  \"de\": \"de-DE\",\n  \"dv\": \"dv-MV\",\n  \"dz\": \"dz-BT\",\n  \"el\": \"el-GR\",\n  \"en\": \"en-US\",\n  \"es\": \"es-ES\",\n  \"et\": \"et-EE\",\n  \"eu\": \"eu-ES\",\n  \"fa\": \"fa-IR\",\n  \"ff\": \"ff-SN\",\n  \"fi\": \"fi-FI\",\n  \"fo\": \"fo-FO\",\n  \"fr\": \"fr-FR\",\n  \"fy\": \"fy-DE\",\n  \"ga\": \"ga-IE\",\n  \"gd\": \"gd-GB\",\n  \"gl\": \"gl-ES\",\n  \"gu\": \"gu-IN\",\n  \"gv\": \"gv-GB\",\n  \"ha\": \"ha-NG\",\n  \"he\": \"he-IL\",\n  \"hi\": \"hi-IN\",\n  \"hr\": \"hr-HR\",\n  \"ht\": \"ht-HT\",\n  \"hu\": \"hu-HU\",\n  \"hy\": \"hy-AM\",\n  \"ia\": \"ia-FR\",\n  \"id\": \"id-ID\",\n  \"ig\": \"ig-NG\",\n  \"ik\": \"ik-CA\",\n  \"is\": \"is-IS\",\n  \"it\": \"it-IT\",\n  \"iu\": \"iu-CA\",\n  \"ja\": \"ja-JP\",\n  \"ka\": \"ka-GE\",\n  \"kk\": \"kk-KZ\",\n  \"kl\": \"kl-GL\",\n  \"km\": \"km-KH\",\n  \"kn\": \"kn-IN\",\n  \"ko\": \"ko-KR\",\n  \"ks\": \"ks-IN\",\n  \"ku\": \"ku-TR\",\n  \"kw\": \"kw-GB\",\n  \"ky\": \"ky-KG\",\n  \"lb\": \"lb-LU\",\n  \"lg\": \"lg-UG\",\n  \"li\": \"li-BE\",\n  \"ln\": \"ln-CD\",\n  \"lo\": \"lo-LA\",\n  \"lt\": \"lt-LT\",\n  \"lv\": \"lv-LV\",\n  \"mg\": \"mg-MG\",\n  \"mh\": \"mh-MH\",\n  \"mi\": \"mi-NZ\",\n  \"mk\": \"mk-MK\",\n  \"ml\": \"ml-IN\",\n  \"mn\": \"mn-MN\",\n  \"mr\": \"mr-IN\",\n  \"ms\": \"ms-MY\",\n  \"mt\": \"mt-MT\",\n  \"my\": \"my-MM\",\n  \"nb\": \"nb-NO\",\n  \"ne\": \"ne-NP\",\n  \"nl\": \"nl-NL\",\n  \"nn\": \"nn-NO\",\n  \"nr\": \"nr-ZA\",\n  \"oc\": \"oc-FR\",\n  \"om\": \"om-KE\",\n  \"or\": \"or-IN\",\n  \"os\": \"os-RU\",\n  \"pa\": \"pa-PK\",\n  \"pl\": \"pl-PL\",\n  \"ps\": \"ps-AF\",\n  \"pt\": \"pt-PT\",\n  \"ro\": \"ro-RO\",\n  \"ru\": \"ru-RU\",\n  \"rw\": \"rw-RW\",\n  \"sa\": \"sa-IN\",\n  \"sc\": \"sc-IT\",\n  \"sd\": \"sd-IN\",\n  \"se\": \"se-NO\",\n  \"si\": \"si-LK\",\n  \"sk\": \"sk-SK\",\n  \"sl\": \"sl-SI\",\n  \"so\": \"so-SO\",\n  \"sq\": \"sq-AL\",\n  \"sr\": \"sr-RS\",\n  \"ss\": \"ss-ZA\",\n  \"st\": \"st-ZA\",\n  \"sv\": \"sv-SE\",\n  \"sw\": \"sw-KE\",\n  \"ta\": \"ta-IN\",\n  \"te\": \"te-IN\",\n  \"tg\": \"tg-TJ\",\n  \"th\": \"th-TH\",\n  \"ti\": \"ti-ER\",\n  \"tk\": \"tk-TM\",\n  \"tl\": \"tl-PH\",\n  \"tn\": \"tn-ZA\",\n  \"tr\": \"tr-TR\",\n  \"ts\": \"ts-ZA\",\n  \"tt\": \"tt-RU\",\n  \"ug\": \"ug-CN\",\n  \"uk\": \"uk-UA\",\n  \"ur\": \"ur-PK\",\n  \"uz\": \"uz-UZ\",\n  \"ve\": \"ve-ZA\",\n  \"vi\": \"vi-VN\",\n  \"wa\": \"wa-BE\",\n  \"wo\": \"wo-SN\",\n  \"xh\": \"xh-ZA\",\n  \"yi\": \"yi-US\",\n  \"yo\": \"yo-NG\",\n  \"zh\": \"zh-CN\",\n  \"zu\": \"zu-ZA\"\n};\n"
+  },
+  {
+    "__docId__": 52,
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/index.js",
+    "memberof": null,
+    "longname": "src/index.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import ContextMenuBuilder from './context-menu-builder';\nimport ContextMenuListener from './context-menu-listener';\nimport DictionarySync from './dictionary-sync';\nimport SpellCheckHandler from './spell-check-handler';\n\n/**\n * Overrides the default logging function (the `debug` library) with another \n * logger.\n *\n * @param {Function}  fn    The `console.log` like function that will write debug\n *                          information to.\n */\nfunction setGlobalLogger(fn) {\n  for (let klass of [ContextMenuBuilder, ContextMenuListener, DictionarySync, SpellCheckHandler]) {\n    klass.setLogger(fn);\n  }\n}\n\nmodule.exports = {\n  ContextMenuBuilder,\n  ContextMenuListener,\n  DictionarySync,\n  SpellCheckHandler,\n  setGlobalLogger\n};\n"
+  },
+  {
+    "__docId__": 53,
+    "kind": "function",
+    "static": true,
+    "variation": null,
+    "name": "setGlobalLogger",
+    "memberof": "src/index.js",
+    "longname": "src/index.js~setGlobalLogger",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/index.js",
+    "importStyle": null,
+    "description": "Overrides the default logging function (the `debug` library) with another \nlogger.",
+    "lineNumber": 13,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "fn",
+        "description": "The `console.log` like function that will write debug\n                         information to."
+      }
+    ],
+    "generator": false
+  },
+  {
+    "__docId__": 54,
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/node-spellchecker.js",
+    "memberof": null,
+    "longname": "src/node-spellchecker.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "// NB: On Windows we still use Hunspell\nif (process.platform === 'win32') {\n  process.env['SPELLCHECKER_PREFER_HUNSPELL'] = 1;\n}\n\nmodule.exports = require('@paulcbetts/spellchecker');\n"
+  },
+  {
+    "__docId__": 55,
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/promisify.js",
+    "memberof": null,
+    "longname": "src/promisify.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import pify from 'pify';\n\nmodule.exports = ['fs', 'mkdirp', 'rimraf'].reduce((acc, x) => {\n  acc[x] = pify(require(x));\n  return acc;\n}, {});\n"
+  },
+  {
+    "__docId__": 56,
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/spell-check-handler.js",
+    "memberof": null,
+    "longname": "src/spell-check-handler.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import {CompositeDisposable, Disposable, Observable, Scheduler, SerialDisposable, Subject} from 'rx';\nimport {getInstalledKeyboardLanguages} from 'keyboard-layout';\nimport {spawn} from 'spawn-rx';\n\nimport './custom-operators';\nimport DictionarySync from './dictionary-sync';\nimport {normalizeLanguageCode} from './utility';\nimport FakeLocalStorage from './fake-local-storage';\n\nimport {Spellchecker} from './node-spellchecker';\n\nlet d = require('debug-electron')('electron-spellchecker:spell-check-handler');\n\nlet cld = null;\nlet fallbackLocaleTable = null;\nlet webFrame = (process.type === 'renderer' ?\n  require('electron').webFrame :\n  null);\n\n// NB: Linux and Windows uses underscore in languages (i.e. 'en_US'), whereas\n// we're trying really hard to match the Chromium way of `en-US`\nconst validLangCodeWindowsLinux = /[a-z]{2}[_][A-Z]{2}/;\n\n// NB: This is to work around electron/electron#1005, where contractions\n// are incorrectly marked as spelling errors. This lets people get away with\n// incorrectly spelled contracted words, but it's the best we can do for now.\nconst contractions = [\n  \"ain't\", \"aren't\", \"can't\", \"could've\", \"couldn't\", \"couldn't've\", \"didn't\", \"doesn't\", \"don't\", \"hadn't\",\n  \"hadn't've\", \"hasn't\", \"haven't\", \"he'd\", \"he'd've\", \"he'll\", \"he's\", \"how'd\", \"how'll\", \"how's\", \"I'd\",\n  \"I'd've\", \"I'll\", \"I'm\", \"I've\", \"isn't\", \"it'd\", \"it'd've\", \"it'll\", \"it's\", \"let's\", \"ma'am\", \"mightn't\",\n  \"mightn't've\", \"might've\", \"mustn't\", \"must've\", \"needn't\", \"not've\", \"o'clock\", \"shan't\", \"she'd\", \"she'd've\",\n  \"she'll\", \"she's\", \"should've\", \"shouldn't\", \"shouldn't've\", \"that'll\", \"that's\", \"there'd\", \"there'd've\",\n  \"there're\", \"there's\", \"they'd\", \"they'd've\", \"they'll\", \"they're\", \"they've\", \"wasn't\", \"we'd\", \"we'd've\",\n  \"we'll\", \"we're\", \"we've\", \"weren't\", \"what'll\", \"what're\", \"what's\", \"what've\", \"when's\", \"where'd\",\n  \"where's\", \"where've\", \"who'd\", \"who'll\", \"who're\", \"who's\", \"who've\", \"why'll\", \"why're\", \"why's\", \"won't\",\n  \"would've\", \"wouldn't\", \"wouldn't've\", \"y'all\", \"y'all'd've\", \"you'd\", \"you'd've\", \"you'll\", \"you're\", \"you've\"\n];\n\nconst contractionMap = contractions.reduce((acc, word) => {\n  acc[word.replace(/'.*/, '')] = true;\n  return acc;\n}, {});\n\n/**\n * This method mimics Observable.fromEvent, but with capture semantics.\n */\nfunction fromEventCapture(element, name) {\n  return Observable.create((subj) => {\n    const handler = function(...args) {\n      if (args.length > 1) {\n        subj.onNext(args);\n      } else {\n        subj.onNext(args[0] || true);\n      }\n    };\n\n    element.addEventListener(name, handler, true);\n    return Disposable.create(() => element.removeEventListener(name, handler, true));\n  });\n}\n\n/**\n * SpellCheckHandler is the main class of this library, and handles all of the\n * different pieces of spell checking except for the context menu information.\n *\n * Instantiate the class, then call {{attachToInput}} to wire it up. The spell\n * checker will attempt to automatically check the language that the user is \n * typing in and switch on-the fly. However, giving it an explicit hint by \n * calling {{switchLanguage}}, or providing it a block of sample text via \n * {{provideHintText}} will result in much better results.\n *\n * Sample text should be text that is reasonably likely to be in the same language\n * as the user typing - for example, in an Email reply box, the original Email text\n * would be a great sample, or in the case of Slack, the existing channel messages\n * are used as the sample text.\n */\nexport default class SpellCheckHandler {\n  /**\n   * Constructs a SpellCheckHandler\n   * \n   * @param  {DictionarySync} dictionarySync  An instance of {{DictionarySync}},\n   *                                          create a custom one if you want\n   *                                          to override the dictionary cache\n   *                                          location.\n   * @param  {LocalStorage} localStorage      An implementation of localStorage\n   *                                          used for testing.\n   * @param  {Scheduler} scheduler            The Rx scheduler to use, for \n   *                                          testing.\n   */\n  constructor(dictionarySync=null, localStorage=null, scheduler=null) {\n    this.dictionarySync = dictionarySync || new DictionarySync();\n    this.switchToLanguage = new Subject();\n    this.currentSpellchecker = null;\n    this.currentSpellcheckerLanguage = null;\n    this.currentSpellcheckerChanged = new Subject();\n    this.spellCheckInvoked = new Subject();\n    this.spellingErrorOccurred = new Subject();\n\n    this.scheduler = scheduler || Scheduler.default;\n    this.shouldAutoCorrect = true;\n\n    // NB: A Cool thing is when window.localStorage is rigged to blow up\n    // if you touch it from a data: URI in Chromium.\n    try {\n      this.localStorage = localStorage || window.localStorage || new FakeLocalStorage();\n    } catch (ugh) {\n      this.localStorage = new FakeLocalStorage();\n    }\n\n    this.disp = new SerialDisposable();\n\n    if (process.platform === 'darwin') {\n      // NB: OS X does automatic language detection, we're gonna trust it\n      this.currentSpellchecker = new Spellchecker();\n      this.currentSpellcheckerLanguage = 'en-US';\n\n      if (webFrame) {\n        webFrame.setSpellCheckProvider(\n          this.currentSpellcheckerLanguage,\n          this.shouldAutoCorrect,\n          { spellCheck: this.handleElectronSpellCheck.bind(this) });\n      }\n      return;\n    }\n  }\n    \n  /**\n   * Disconnect the events that we connected in {{attachToInput}} or other places\n   * in the class.\n   */  \n  dispose() {\n    this.disp.dispose();\n  }\n\n  /**\n   * Override the default logger for this class. You probably want to use\n   * {{setGlobalLogger}} instead\n   * \n   * @param {Function} fn   The function which will operate like console.log\n   */  \n  static setLogger(fn) {\n    d = fn;\n  }\n  \n  /**\n   * Attach to document.body and register ourselves for Electron spell checking.\n   * This method will start to watch text entered by the user and automatically\n   * switch languages as well as enable Electron spell checking (i.e. the red\n   * squigglies).\n   * \n   * @param  {Observable<String>} inputText     Simulate the user typing text,\n   *                                            for testing.\n   *\n   * @return {Disposable}       A Disposable which will unregister all of the \n   *                            things that this method registered.\n   */\n  attachToInput(inputText=null) {\n    // OS X has no need for any of this\n    if (process.platform === 'darwin' && !inputText) {\n      return Disposable.empty;\n    }\n\n    let possiblySwitchedCharacterSets = new Subject();\n    let wordsTyped = 0;\n\n    let input = inputText || (fromEventCapture(document.body, 'input')\n      .flatMap((e) => {\n        if (!e.target || !e.target.value) return Observable.empty();\n        if (e.target.value.match(/\\S\\s$/)) {\n          wordsTyped++;\n        }\n\n        if (wordsTyped > 2) {\n          d(`${wordsTyped} words typed without spell checking invoked, redetecting language`);\n          possiblySwitchedCharacterSets.onNext(true);\n        }\n\n        return Observable.just(e.target.value);\n      }));\n\n    let disp = new CompositeDisposable();\n\n    // NB: When users switch character sets (i.e. we're checking in English and\n    // the user suddenly starts typing in Russian), the spellchecker will no\n    // longer invoke us, so we don't have a chance to re-detect the language.\n    //\n    // If we see too many words typed without a spelling detection, we know we\n    // should start rechecking the input box for a language change.\n    disp.add(Observable.merge(this.spellCheckInvoked, this.currentSpellcheckerChanged)\n      .subscribe(() => wordsTyped = 0));\n\n\n    let lastInputText = '';\n    disp.add(input.subscribe((x) => lastInputText = x));\n\n    let initialInputText = input\n      .guaranteedThrottle(250, this.scheduler)\n      .takeUntil(this.currentSpellcheckerChanged);\n\n    if (this.currentSpellcheckerLanguage) {\n      initialInputText = Observable.empty();\n    }\n\n    let contentToCheck = Observable.merge(\n        this.spellingErrorOccurred,\n        initialInputText,\n        possiblySwitchedCharacterSets)\n      .observeOn(this.scheduler)\n      .flatMap(() => {\n        if (lastInputText.length < 8) return Observable.empty();\n        return Observable.just(lastInputText);\n      });\n\n    let languageDetectionMatches = contentToCheck\n      .flatMap((text) => {\n        d(`Attempting detection of ${text}`);\n        return Observable.fromPromise(this.detectLanguageForText(text))\n          .catch(() => Observable.empty());\n      });\n\n    disp.add(languageDetectionMatches\n      .flatMap(async (langWithoutLocale) => {\n        d(`Auto-detected language as ${langWithoutLocale}`);\n        let lang = await this.getLikelyLocaleForLanguage(langWithoutLocale);\n        if (lang !== this.currentSpellcheckerLanguage) await this.switchLanguage(lang);\n\n        return lang;\n      })\n      .catch((e) => {\n        d(`Failed to load dictionary: ${e.message}`);\n        return Observable.empty();\n      })\n      .subscribe(async (lang) => {\n        d(`New Language is ${lang}`);\n      }));\n\n    if (webFrame) {\n      disp.add(this.currentSpellcheckerChanged\n          .startWith(true)\n          .observeOn(this.scheduler)\n        .where(() => this.currentSpellchecker)\n        .subscribe(() => {\n          d('Actually installing spell check provider to Electron');\n\n          webFrame.setSpellCheckProvider(\n            this.currentSpellcheckerLanguage,\n            this.shouldAutoCorrect,\n            { spellCheck: this.handleElectronSpellCheck.bind(this) });\n        }));\n    }\n\n    this.disp.setDisposable(disp);\n    return disp;\n  }\n  \n  /**\n   * autoUnloadDictionariesOnBlur attempts to save memory by unloading \n   * dictionaries when the window loses focus.\n   * \n   * @return {Disposable}   A {{Disposable}} that will unhook the events listened\n   *                        to by this method.\n   */\n  autoUnloadDictionariesOnBlur() {\n    let ret = new CompositeDisposable();\n    let hasUnloaded = false;\n\n    if (process.platform === 'darwin') return Disposable.empty;\n\n    ret.add(Observable.fromEvent(window, 'blur').subscribe(() => {\n      d(`Unloading spellchecker`);\n      this.currentSpellchecker = null;\n      hasUnloaded = true;\n    }));\n\n    ret.add(Observable.fromEvent(window, 'focus').flatMap(() => {\n      if (!hasUnloaded) return Observable.empty();\n      if (!this.currentSpellcheckerLanguage) return Observable.empty();\n\n      d(`Restoring spellchecker`);\n      return Observable.fromPromise(this.switchLanguage(this.currentSpellcheckerLanguage))\n        .catch((e) => {\n          d(`Failed to restore spellchecker: ${e.message}`);\n          return Observable.empty();\n        });\n    }).subscribe());\n\n    return ret;\n  }\n  \n  /**\n   * Switch the dictionary language to the language of the sample text provided.\n   * As described in the class documentation, call this method with text most \n   * likely in the same language as the user is typing. The locale (i.e. *US* vs\n   * *UK* vs *AU*) will be inferred heuristically based on the user's computer.\n   * \n   * @param  {String} inputText   A language code (i.e. 'en-US')\n   * \n   * @return {Promise}            Completion\n   */\n  async provideHintText(inputText) {\n    let langWithoutLocale = null;\n    try {\n      langWithoutLocale = await this.detectLanguageForText(inputText);\n    } catch (e) {\n      d(`Couldn't detect language for text '${inputText}': ${e.message}, ignoring sample`);\n      return;\n    }\n\n    let lang = await this.getLikelyLocaleForLanguage(langWithoutLocale);\n    await this.switchLanguage(lang);\n  }\n\n  /**\n   * Explicitly switch the language to a specific language. This method will \n   * automatically download the dictionary for the specific language and locale\n   * and on failure, will attempt to switch to dictionaries that are the same\n   * language but a default locale.\n   * \n   * @param  {String} langCode    A language code (i.e. 'en-US')\n   * \n   * @return {Promise}            Completion\n   */\n  async switchLanguage(langCode) {\n    let actualLang;\n    let dict = null;\n\n    try {\n      let {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);\n      actualLang = language;  dict = dictionary;\n    } catch (e) {\n      d(`Failed to load dictionary ${langCode}: ${e.message}`);\n      throw e;\n    }\n\n    d(`Setting current spellchecker to ${actualLang}, requested language was ${langCode}`);\n    if (this.currentSpellcheckerLanguage !== actualLang || !this.currentSpellchecker) {\n      d(`Creating node-spellchecker instance`);\n      this.currentSpellchecker = new Spellchecker();\n      this.currentSpellchecker.setDictionary(actualLang, dict);\n      this.currentSpellcheckerLanguage = actualLang;\n      this.currentSpellcheckerChanged.onNext(true);\n    }\n  }\n\n  /**\n   * Loads a dictionary and attempts to use fallbacks if it fails.\n   * @private\n   */\n  async loadDictionaryForLanguageWithAlternatives(langCode, cacheOnly=false) {\n    const localStorageKey =  'electronSpellchecker_alternatesTable';\n\n    this.fallbackLocaleTable = this.fallbackLocaleTable || require('./fallback-locales');\n    let lang = langCode.substring(0, 2);\n\n    let alternatives = [langCode, await this.getLikelyLocaleForLanguage(lang), this.fallbackLocaleTable[lang]];\n    let alternatesTable = JSON.parse(this.localStorage.getItem(localStorageKey) || '{}');\n\n    if (langCode in alternatesTable) {\n      try {\n        return {\n          language: alternatesTable[langCode],\n          dictionary: await this.dictionarySync.loadDictionaryForLanguage(alternatesTable[langCode])\n        };\n      } catch (e) {\n        // If we fail to load a saved alternate, this is an indicator that our\n        // data is garbage and we should throw it out entirely.\n        this.localStorage.setItem(localStorageKey, '{}');\n      }\n    }\n\n    d(`Requesting to load ${langCode}, alternatives are ${JSON.stringify(alternatives)}`);\n    return await Observable.of(...alternatives)\n      .concatMap((l) => {\n        return Observable.defer(() =>\n            Observable.fromPromise(this.dictionarySync.loadDictionaryForLanguage(l, cacheOnly)))\n          .map((d) => ({language: l, dictionary: d}))\n          .do(({language}) => {\n            alternatesTable[langCode] = language;\n            this.localStorage.setItem(localStorageKey, JSON.stringify(alternatesTable));\n          })\n          .catch(() => Observable.just(null));\n      })\n      .filter((x) => x !== null)\n      .take(1)\n      .toPromise();\n  }\n\n  /**\n   *  The actual callout called by Electron to handle spellchecking\n   *  @private\n   */\n  handleElectronSpellCheck(text) {\n    if (!this.currentSpellchecker) return true;\n    this.spellCheckInvoked.onNext(true);\n\n    if (contractionMap[text.toLocaleLowerCase()]) return true;\n\n    // NB: I'm not smart enough to fix this bug in Chromium's version of\n    // Hunspell so I'm going to fix it here instead. Chromium Hunspell for\n    // whatever reason marks the first word in a sentence as mispelled if it is\n    // capitalized.\n    let result = this.currentSpellchecker.checkSpelling(text);\n    if (result.length < 1) return true;\n    if (result[0].start !== 0) {\n      this.spellingErrorOccurred.onNext(text);\n      return false;\n    }\n\n    let ret = this.currentSpellchecker.isMisspelled(text.toLocaleLowerCase());\n    if (ret) {\n      this.spellingErrorOccurred.onNext(text);\n    }\n\n    return !ret;\n  }\n\n  /**\n   * Calls out to cld2 to detect the language of the given text\n   * @private\n   */\n  detectLanguageForText(text) {\n    // NB: Unfortuantely cld marshals errors incorrectly, so we can't use pify\n    cld = cld || require('cld');\n\n    return new Promise((res,rej) => {\n      cld.detect(text, (err, result) => {\n        if (err) { rej(new Error(err.message)); return; }\n        if (!result.reliable || result.languages[0].percent < 85) {\n          rej(new Error('Not enough reliable text'));\n          return;\n        }\n\n        res(result.languages[0].code);\n      });\n    });\n  }\n\n  /**\n   * Returns the locale for a language code based on the user's machine (i.e. \n   * 'en' => 'en-GB')\n   */\n  async getLikelyLocaleForLanguage(language) {\n    let lang = language.toLowerCase();\n    if (!this.likelyLocaleTable) this.likelyLocaleTable = await this.buildLikelyLocaleTable();\n\n    if (this.likelyLocaleTable[lang]) return this.likelyLocaleTable[lang];\n    this.fallbackLocaleTable = this.fallbackLocaleTable || require('./fallback-locales');\n\n    return this.fallbackLocaleTable[lang];\n  }\n\n  /**\n   * A proxy for the current spellchecker's method of the same name\n   * @private\n   */\n  async getCorrectionsForMisspelling(text) {\n    // NB: This is async even though we don't use await, to make it easy for\n    // ContextMenuBuilder to use this method even when it's hosted in another\n    // renderer process via electron-remote.\n    if (!this.currentSpellchecker) {\n      return null;\n    }\n\n    return this.currentSpellchecker.getCorrectionsForMisspelling(text);\n  }\n\n  /**\n   * A proxy for the current spellchecker's method of the same name\n   * @private\n   */\n  async addToDictionary(text) {\n    // NB: Same deal as getCorrectionsForMisspelling.\n    if (process.platform !== 'darwin') return;\n    if (!this.currentSpellchecker) return;\n\n    this.currentSpellchecker.add(text);\n  }\n\n  /**\n   * Call out to the OS to figure out what locales the user is probably \n   * interested in then save it off as a table.\n   * @private\n   */\n  async buildLikelyLocaleTable() {\n    let localeList = [];\n\n    if (process.platform === 'linux') {\n      let locales = await spawn('locale', ['-a'])\n        .catch(() => Observable.just(null))\n        .reduce((acc,x) => { acc.push(...x.split('\\n')); return acc; }, [])\n        .toPromise();\n\n      d(`Raw Locale list: ${JSON.stringify(locales)}`);\n\n      localeList = locales.reduce((acc, x) => {\n        let m = x.match(validLangCodeWindowsLinux);\n        if (!m) return acc;\n\n        acc.push(m[0]);\n        return acc;\n      }, []);\n    }\n\n    if (process.platform === 'win32') {\n      localeList = getInstalledKeyboardLanguages();\n    }\n\n    if (process.platform === 'darwin') {\n      fallbackLocaleTable = fallbackLocaleTable || require('./fallback-locales');\n\n      // NB: OS X will return lists that are half just a language, half\n      // language + locale, like ['en', 'pt_BR', 'ko']\n      localeList = this.currentSpellchecker.getAvailableDictionaries()\n        .map((x => {\n          if (x.length === 2) return fallbackLocaleTable[x];\n          return normalizeLanguageCode(x);\n        }));\n    }\n\n    d(`Filtered Locale list: ${JSON.stringify(localeList)}`);\n\n    // Some distros like Ubuntu make locale -a useless by dumping\n    // every possible locale for the language into the list :-/\n    let counts = localeList.reduce((acc,x) => {\n      let k = x.substring(0,2);\n      acc[k] = acc[k] || [];\n      acc[k].push(x);\n\n      return acc;\n    }, {});\n\n    d(`Counts: ${JSON.stringify(counts)}`);\n\n    let ret = Object.keys(counts).reduce((acc, x) => {\n      if (counts[x].length > 1) return acc;\n\n      d(`Setting ${x}`);\n      acc[x] = normalizeLanguageCode(counts[x][0]);\n\n      return acc;\n    }, {});\n\n    // NB: LANG has a Special Place In Our Hearts\n    if (process.platform === 'linux' && process.env.LANG) {\n      let m = process.env.LANG.match(validLangCodeWindowsLinux);\n      if (!m) return ret;\n\n      ret[m[0].substring(0, 2)] = normalizeLanguageCode(m[0]);\n    }\n\n    d(`Result: ${JSON.stringify(ret)}`);\n    return ret;\n  }\n}\n"
+  },
+  {
+    "__docId__": 57,
+    "kind": "variable",
+    "static": true,
+    "variation": null,
+    "name": "d",
+    "memberof": "src/spell-check-handler.js",
+    "longname": "src/spell-check-handler.js~d",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/spell-check-handler.js",
+    "importStyle": null,
+    "description": null,
+    "lineNumber": 12,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 58,
+    "kind": "variable",
+    "static": true,
+    "variation": null,
+    "name": "cld",
+    "memberof": "src/spell-check-handler.js",
+    "longname": "src/spell-check-handler.js~cld",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/spell-check-handler.js",
+    "importStyle": null,
+    "description": null,
+    "lineNumber": 14,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 59,
+    "kind": "variable",
+    "static": true,
+    "variation": null,
+    "name": "fallbackLocaleTable",
+    "memberof": "src/spell-check-handler.js",
+    "longname": "src/spell-check-handler.js~fallbackLocaleTable",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/spell-check-handler.js",
+    "importStyle": null,
+    "description": null,
+    "lineNumber": 15,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 60,
+    "kind": "variable",
+    "static": true,
+    "variation": null,
+    "name": "webFrame",
+    "memberof": "src/spell-check-handler.js",
+    "longname": "src/spell-check-handler.js~webFrame",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/spell-check-handler.js",
+    "importStyle": null,
+    "description": null,
+    "lineNumber": 16,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 61,
+    "kind": "variable",
+    "static": true,
+    "variation": null,
+    "name": "validLangCodeWindowsLinux",
+    "memberof": "src/spell-check-handler.js",
+    "longname": "src/spell-check-handler.js~validLangCodeWindowsLinux",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/spell-check-handler.js",
+    "importStyle": null,
+    "description": null,
+    "lineNumber": 22,
+    "undocument": true,
+    "type": {
+      "types": [
+        "object"
+      ]
+    }
+  },
+  {
+    "__docId__": 62,
+    "kind": "variable",
+    "static": true,
+    "variation": null,
+    "name": "contractions",
+    "memberof": "src/spell-check-handler.js",
+    "longname": "src/spell-check-handler.js~contractions",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/spell-check-handler.js",
+    "importStyle": null,
+    "description": null,
+    "lineNumber": 27,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 63,
+    "kind": "variable",
+    "static": true,
+    "variation": null,
+    "name": "contractionMap",
+    "memberof": "src/spell-check-handler.js",
+    "longname": "src/spell-check-handler.js~contractionMap",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/spell-check-handler.js",
+    "importStyle": null,
+    "description": null,
+    "lineNumber": 39,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 64,
+    "kind": "function",
+    "static": true,
+    "variation": null,
+    "name": "fromEventCapture",
+    "memberof": "src/spell-check-handler.js",
+    "longname": "src/spell-check-handler.js~fromEventCapture",
+    "access": null,
+    "export": false,
+    "importPath": "electron-spellchecker/src/spell-check-handler.js",
+    "importStyle": null,
+    "description": "This method mimics Observable.fromEvent, but with capture semantics.",
+    "lineNumber": 47,
+    "params": [
+      {
+        "name": "element",
+        "types": [
+          "*"
+        ]
+      },
+      {
+        "name": "name",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 65,
+    "kind": "class",
+    "static": true,
+    "variation": null,
+    "name": "SpellCheckHandler",
+    "memberof": "src/spell-check-handler.js",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler",
+    "access": null,
+    "export": true,
+    "importPath": "electron-spellchecker/src/spell-check-handler.js",
+    "importStyle": "SpellCheckHandler",
+    "description": "SpellCheckHandler is the main class of this library, and handles all of the\ndifferent pieces of spell checking except for the context menu information.\n\nInstantiate the class, then call {{attachToInput}} to wire it up. The spell\nchecker will attempt to automatically check the language that the user is \ntyping in and switch on-the fly. However, giving it an explicit hint by \ncalling {{switchLanguage}}, or providing it a block of sample text via \n{{provideHintText}} will result in much better results.\n\nSample text should be text that is reasonably likely to be in the same language\nas the user typing - for example, in an Email reply box, the original Email text\nwould be a great sample, or in the case of Slack, the existing channel messages\nare used as the sample text.",
+    "lineNumber": 77,
+    "interface": false
+  },
+  {
+    "__docId__": 66,
+    "kind": "constructor",
+    "static": false,
+    "variation": null,
+    "name": "constructor",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#constructor",
+    "access": null,
+    "description": "Constructs a SpellCheckHandler",
+    "lineNumber": 90,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "DictionarySync"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "dictionarySync",
+        "description": "An instance of {{DictionarySync}},\n                                         create a custom one if you want\n                                         to override the dictionary cache\n                                         location."
+      },
+      {
+        "nullable": null,
+        "types": [
+          "LocalStorage"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "localStorage",
+        "description": "An implementation of localStorage\n                                         used for testing."
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Scheduler"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "scheduler",
+        "description": "The Rx scheduler to use, for \n                                         testing."
+      }
+    ],
+    "generator": false
+  },
+  {
+    "__docId__": 67,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "dictionarySync",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#dictionarySync",
+    "access": null,
+    "description": null,
+    "lineNumber": 91,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 68,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "switchToLanguage",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#switchToLanguage",
+    "access": null,
+    "description": null,
+    "lineNumber": 92,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 69,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "currentSpellchecker",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#currentSpellchecker",
+    "access": null,
+    "description": null,
+    "lineNumber": 93,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 70,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "currentSpellcheckerLanguage",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#currentSpellcheckerLanguage",
+    "access": null,
+    "description": null,
+    "lineNumber": 94,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 71,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "currentSpellcheckerChanged",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#currentSpellcheckerChanged",
+    "access": null,
+    "description": null,
+    "lineNumber": 95,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 72,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "spellCheckInvoked",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#spellCheckInvoked",
+    "access": null,
+    "description": null,
+    "lineNumber": 96,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 73,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "spellingErrorOccurred",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#spellingErrorOccurred",
+    "access": null,
+    "description": null,
+    "lineNumber": 97,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 74,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "scheduler",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#scheduler",
+    "access": null,
+    "description": null,
+    "lineNumber": 99,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 75,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "shouldAutoCorrect",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#shouldAutoCorrect",
+    "access": null,
+    "description": null,
+    "lineNumber": 100,
+    "undocument": true,
+    "type": {
+      "types": [
+        "boolean"
+      ]
+    }
+  },
+  {
+    "__docId__": 76,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "localStorage",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#localStorage",
+    "access": null,
+    "description": null,
+    "lineNumber": 105,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 77,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "localStorage",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#localStorage",
+    "access": null,
+    "description": null,
+    "lineNumber": 107,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 78,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "disp",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#disp",
+    "access": null,
+    "description": null,
+    "lineNumber": 110,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 79,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "currentSpellchecker",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#currentSpellchecker",
+    "access": null,
+    "description": null,
+    "lineNumber": 114,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 80,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "currentSpellcheckerLanguage",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#currentSpellcheckerLanguage",
+    "access": null,
+    "description": null,
+    "lineNumber": 115,
+    "undocument": true,
+    "type": {
+      "types": [
+        "string"
+      ]
+    }
+  },
+  {
+    "__docId__": 81,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "dispose",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#dispose",
+    "access": null,
+    "description": "Disconnect the events that we connected in {{attachToInput}} or other places\nin the class.",
+    "lineNumber": 131,
+    "params": [],
+    "generator": false
+  },
+  {
+    "__docId__": 82,
+    "kind": "method",
+    "static": true,
+    "variation": null,
+    "name": "setLogger",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler.setLogger",
+    "access": null,
+    "description": "Override the default logger for this class. You probably want to use\n{{setGlobalLogger}} instead",
+    "lineNumber": 141,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "fn",
+        "description": "The function which will operate like console.log"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "__docId__": 83,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "attachToInput",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#attachToInput",
+    "access": null,
+    "description": "Attach to document.body and register ourselves for Electron spell checking.\nThis method will start to watch text entered by the user and automatically\nswitch languages as well as enable Electron spell checking (i.e. the red\nsquigglies).",
+    "lineNumber": 157,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Observable<String>"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "inputText",
+        "description": "Simulate the user typing text,\n                                           for testing."
+      }
+    ],
+    "return": {
+      "nullable": null,
+      "types": [
+        "Disposable"
+      ],
+      "spread": false,
+      "description": "A Disposable which will unregister all of the \n                           things that this method registered."
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 84,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "autoUnloadDictionariesOnBlur",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#autoUnloadDictionariesOnBlur",
+    "access": null,
+    "description": "autoUnloadDictionariesOnBlur attempts to save memory by unloading \ndictionaries when the window loses focus.",
+    "lineNumber": 263,
+    "params": [],
+    "return": {
+      "nullable": null,
+      "types": [
+        "Disposable"
+      ],
+      "spread": false,
+      "description": "A {{Disposable}} that will unhook the events listened\n                       to by this method."
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 85,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "currentSpellchecker",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#currentSpellchecker",
+    "access": null,
+    "description": null,
+    "lineNumber": 271,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 86,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "provideHintText",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#provideHintText",
+    "access": null,
+    "description": "Switch the dictionary language to the language of the sample text provided.\nAs described in the class documentation, call this method with text most \nlikely in the same language as the user is typing. The locale (i.e. *US* vs\n*UK* vs *AU*) will be inferred heuristically based on the user's computer.",
+    "lineNumber": 300,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "inputText",
+        "description": "A language code (i.e. 'en-US')"
+      }
+    ],
+    "return": {
+      "nullable": null,
+      "types": [
+        "Promise"
+      ],
+      "spread": false,
+      "description": "Completion"
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 87,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "switchLanguage",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#switchLanguage",
+    "access": null,
+    "description": "Explicitly switch the language to a specific language. This method will \nautomatically download the dictionary for the specific language and locale\nand on failure, will attempt to switch to dictionaries that are the same\nlanguage but a default locale.",
+    "lineNumber": 323,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "langCode",
+        "description": "A language code (i.e. 'en-US')"
+      }
+    ],
+    "return": {
+      "nullable": null,
+      "types": [
+        "Promise"
+      ],
+      "spread": false,
+      "description": "Completion"
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 88,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "currentSpellchecker",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#currentSpellchecker",
+    "access": null,
+    "description": null,
+    "lineNumber": 338,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 89,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "currentSpellcheckerLanguage",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#currentSpellcheckerLanguage",
+    "access": null,
+    "description": null,
+    "lineNumber": 340,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 90,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "loadDictionaryForLanguageWithAlternatives",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#loadDictionaryForLanguageWithAlternatives",
+    "access": "private",
+    "description": "Loads a dictionary and attempts to use fallbacks if it fails.",
+    "lineNumber": 349,
+    "params": [
+      {
+        "name": "langCode",
+        "types": [
+          "*"
+        ]
+      },
+      {
+        "name": "cacheOnly",
+        "optional": true,
+        "types": [
+          "boolean"
+        ],
+        "defaultRaw": false,
+        "defaultValue": "false"
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 91,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "fallbackLocaleTable",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#fallbackLocaleTable",
+    "access": null,
+    "description": null,
+    "lineNumber": 352,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 92,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "handleElectronSpellCheck",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#handleElectronSpellCheck",
+    "access": "private",
+    "description": " The actual callout called by Electron to handle spellchecking",
+    "lineNumber": 392,
+    "params": [
+      {
+        "name": "text",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 93,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "detectLanguageForText",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#detectLanguageForText",
+    "access": "private",
+    "description": "Calls out to cld2 to detect the language of the given text",
+    "lineNumber": 421,
+    "params": [
+      {
+        "name": "text",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 94,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "getLikelyLocaleForLanguage",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#getLikelyLocaleForLanguage",
+    "access": null,
+    "description": "Returns the locale for a language code based on the user's machine (i.e. \n'en' => 'en-GB')",
+    "lineNumber": 442,
+    "params": [
+      {
+        "name": "language",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 95,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "likelyLocaleTable",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#likelyLocaleTable",
+    "access": null,
+    "description": null,
+    "lineNumber": 444,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 96,
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "fallbackLocaleTable",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#fallbackLocaleTable",
+    "access": null,
+    "description": null,
+    "lineNumber": 447,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "__docId__": 97,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "getCorrectionsForMisspelling",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#getCorrectionsForMisspelling",
+    "access": "private",
+    "description": "A proxy for the current spellchecker's method of the same name",
+    "lineNumber": 456,
+    "params": [
+      {
+        "name": "text",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 98,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "addToDictionary",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#addToDictionary",
+    "access": "private",
+    "description": "A proxy for the current spellchecker's method of the same name",
+    "lineNumber": 471,
+    "params": [
+      {
+        "name": "text",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "generator": false
+  },
+  {
+    "__docId__": 99,
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "buildLikelyLocaleTable",
+    "memberof": "src/spell-check-handler.js~SpellCheckHandler",
+    "longname": "src/spell-check-handler.js~SpellCheckHandler#buildLikelyLocaleTable",
+    "access": "private",
+    "description": "Call out to the OS to figure out what locales the user is probably \ninterested in then save it off as a table.",
+    "lineNumber": 484,
+    "params": [],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 100,
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/utility.js",
+    "memberof": null,
+    "longname": "src/utility.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "\n/**\n * Normalizes language codes by case and separator. Unfortunately, different\n * platforms have slightly different standards for language codes (i.e. 'en_US' vs\n * 'en-us'). This method flattens them all to the way that Chromium uses internally\n * \n * @param  {String} langCode    The language code to normalize\n * \n * @return {String}             The language code in Chromium format.\n */\nexport function normalizeLanguageCode(langCode) {\n  let [lang, locale] = langCode.split(/[-_]/);\n  lang = lang.toLowerCase();    locale = locale.toUpperCase();\n\n  if (!lang.match(/^[a-z]{2}$/) || !locale.match(/^[A-Z]{2}$/)) {\n    throw new Error(`${langCode} is not a valid language code`);\n  }\n\n  return `${lang}-${locale}`;\n}\n"
+  },
+  {
+    "__docId__": 101,
+    "kind": "function",
+    "static": true,
+    "variation": null,
+    "name": "normalizeLanguageCode",
+    "memberof": "src/utility.js",
+    "longname": "src/utility.js~normalizeLanguageCode",
+    "access": null,
+    "export": true,
+    "importPath": "electron-spellchecker/src/utility.js",
+    "importStyle": "{normalizeLanguageCode}",
+    "description": "Normalizes language codes by case and separator. Unfortunately, different\nplatforms have slightly different standards for language codes (i.e. 'en_US' vs\n'en-us'). This method flattens them all to the way that Chromium uses internally",
+    "lineNumber": 11,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "langCode",
+        "description": "The language code to normalize"
+      }
+    ],
+    "return": {
+      "nullable": null,
+      "types": [
+        "String"
+      ],
+      "spread": false,
+      "description": "The language code in Chromium format."
+    },
+    "generator": false
+  },
+  {
+    "__docId__": 103,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Infinity",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Infinity",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Infinity",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 104,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "NaN",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/NaN",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~NaN",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 105,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "undefined",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~undefined",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 106,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "null",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~null",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 107,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Object",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Object",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 108,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "object",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~object",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 109,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Function",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Function",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 110,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "function",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~function",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 111,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Boolean",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Boolean",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 112,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "boolean",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~boolean",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 113,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Symbol",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Symbol",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 114,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Error",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Error",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 115,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "EvalError",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/EvalError",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~EvalError",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 116,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "InternalError",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/InternalError",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~InternalError",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 117,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "RangeError",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RangeError",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~RangeError",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 118,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "ReferenceError",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ReferenceError",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~ReferenceError",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 119,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "SyntaxError",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SyntaxError",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~SyntaxError",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 120,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "TypeError",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypeError",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~TypeError",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 121,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "URIError",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/URIError",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~URIError",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 122,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Number",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Number",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 123,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "number",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~number",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 124,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Date",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Date",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 125,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "String",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~String",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 126,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "string",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~string",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 127,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "RegExp",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~RegExp",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 128,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Array",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 129,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Int8Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Int8Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Int8Array",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 130,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Uint8Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Uint8Array",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 131,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Uint8ClampedArray",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8ClampedArray",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Uint8ClampedArray",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 132,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Int16Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Int16Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Int16Array",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 133,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Uint16Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint16Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Uint16Array",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 134,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Int32Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Int32Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Int32Array",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 135,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Uint32Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint32Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Uint32Array",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 136,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Float32Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Float32Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Float32Array",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 137,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Float64Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Float64Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Float64Array",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 138,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Map",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Map",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 139,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Set",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Set",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Set",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 140,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "WeakMap",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakMap",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~WeakMap",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 141,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "WeakSet",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakSet",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~WeakSet",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 142,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "ArrayBuffer",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~ArrayBuffer",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 143,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "DataView",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/DataView",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~DataView",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 144,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "JSON",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~JSON",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 145,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Promise",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Promise",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 146,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Generator",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Generator",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Generator",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 147,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "GeneratorFunction",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/GeneratorFunction",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~GeneratorFunction",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 148,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Reflect",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Reflect",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Reflect",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 149,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Proxy",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Proxy",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 151,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "CanvasRenderingContext2D",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D",
+    "memberof": "BuiltinExternal/WebAPIExternal.js",
+    "longname": "BuiltinExternal/WebAPIExternal.js~CanvasRenderingContext2D",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 152,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "DocumentFragment",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/API/DocumentFragment",
+    "memberof": "BuiltinExternal/WebAPIExternal.js",
+    "longname": "BuiltinExternal/WebAPIExternal.js~DocumentFragment",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 153,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Element",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/API/Element",
+    "memberof": "BuiltinExternal/WebAPIExternal.js",
+    "longname": "BuiltinExternal/WebAPIExternal.js~Element",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 154,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Event",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/API/Event",
+    "memberof": "BuiltinExternal/WebAPIExternal.js",
+    "longname": "BuiltinExternal/WebAPIExternal.js~Event",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 155,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Node",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/API/Node",
+    "memberof": "BuiltinExternal/WebAPIExternal.js",
+    "longname": "BuiltinExternal/WebAPIExternal.js~Node",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 156,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "NodeList",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/API/NodeList",
+    "memberof": "BuiltinExternal/WebAPIExternal.js",
+    "longname": "BuiltinExternal/WebAPIExternal.js~NodeList",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 157,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "XMLHttpRequest",
+    "externalLink": "https://developer.mozilla.org/en/docs/Web/API/XMLHttpRequest",
+    "memberof": "BuiltinExternal/WebAPIExternal.js",
+    "longname": "BuiltinExternal/WebAPIExternal.js~XMLHttpRequest",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 158,
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "AudioContext",
+    "externalLink": "https://developer.mozilla.org/en/docs/Web/API/AudioContext",
+    "memberof": "BuiltinExternal/WebAPIExternal.js",
+    "longname": "BuiltinExternal/WebAPIExternal.js~AudioContext",
+    "access": null,
+    "description": "",
+    "builtinExternal": true
+  },
+  {
+    "__docId__": 159,
+    "kind": "testFile",
+    "static": true,
+    "variation": null,
+    "name": "test/asserttest.js",
+    "memberof": null,
+    "longname": "test/asserttest.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import './support';\n\nfunction delay(ms) {\n  return new Promise((resolve) => {\n    setTimeout(resolve, ms);\n  });\n}\n\ndescribe('The test runner', function() {\n  it('should pass this test', async function() {\n    await delay(1000);\n    expect(true).to.be.ok;\n  });\n});\n"
+  },
+  {
+    "__docId__": 160,
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe0",
+    "testId": 0,
+    "memberof": "test/asserttest.js",
+    "testDepth": 0,
+    "longname": "test/asserttest.js~describe0",
+    "access": null,
+    "description": "The test runner",
+    "lineNumber": 9
+  },
+  {
+    "__docId__": 161,
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it1",
+    "testId": 1,
+    "memberof": "test/asserttest.js~describe0",
+    "testDepth": 1,
+    "longname": "test/asserttest.js~describe0.it1",
+    "access": null,
+    "description": "should pass this test",
+    "lineNumber": 10
+  },
+  {
+    "__docId__": 162,
+    "kind": "testFile",
+    "static": true,
+    "variation": null,
+    "name": "test/dictionary-sync.js",
+    "memberof": null,
+    "longname": "test/dictionary-sync.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import './support';\n\nimport fs from 'fs';\nimport path from 'path';\nimport rimraf from 'rimraf';\nimport {getInstalledKeyboardLanguages} from 'keyboard-layout';\n\nimport DictionarySync from '../src/dictionary-sync';\n\nconst d = require('debug-electron')('electron-spellchecker-test:dictionary-sync');\n\nlet testCount = 0;\n\ndescribe('The Dictionary Sync class', function() {\n  beforeEach(function() {\n    this.tempCacheDir = path.join(__dirname, `__dict_sync_${testCount++}`);\n    this.fixture = new DictionarySync(this.tempCacheDir);\n  });\n\n  afterEach(function() {\n    //console.log(this.tempCacheDir);\n    rimraf.sync(this.tempCacheDir);\n  });\n\n  describe('loadDictionaryForLanguage method', function() {\n    this.timeout(60*1000);\n\n    it('should download the German dictionary', async function() {\n      let buf = await this.fixture.loadDictionaryForLanguage('de-DE');\n\n      expect(buf.constructor.name).to.equal('Buffer');\n      expect(buf.length > 1000).to.be.ok;\n    });\n\n    it('should throw when we a language that isnt real', async function() {\n      let ret = null;\n      try {\n        ret = await this.fixture.loadDictionaryForLanguage('zz-ZZ');\n      } catch (e) {\n        return;\n      }\n\n      d(ret);\n      d(typeof ret);\n      fs.writeFileSync('./wtfisthisfile', ret);\n      throw new Error(\"Didn't fail!\");\n    });\n    \n    it('should throw when we try to load es-MX because Google doesnt have it', async function() {\n      let ret = null;\n      try {\n        ret = await this.fixture.loadDictionaryForLanguage('es-MX');\n      } catch (e) {\n        return;\n      }\n\n      d(ret);\n      d(typeof ret);\n      fs.writeFileSync('./wtfisthisfile', ret);\n      throw new Error(\"Didn't fail!\");    \n    });\n  });\n\n  describe('preloadDictionaries', function() {\n    this.timeout(60*1000);\n\n    it('should preload some dictionaries', async function() {\n      if (process.platform === 'linux') return;\n\n      let installedLangs = getInstalledKeyboardLanguages();\n      if (!installedLangs || installedLangs.length < 1) return;\n\n      let langFiles = await this.fixture.preloadDictionaries();\n\n      expect(langFiles.length).to.equal(installedLangs.length);\n      for (let lang of langFiles) {\n        expect(fs.existsSync(lang)).to.be.ok;\n      }\n    });\n  });\n});\n"
+  },
+  {
+    "__docId__": 163,
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe2",
+    "testId": 2,
+    "memberof": "test/dictionary-sync.js",
+    "testDepth": 0,
+    "longname": "test/dictionary-sync.js~describe2",
+    "access": null,
+    "description": "The Dictionary Sync class",
+    "lineNumber": 14
+  },
+  {
+    "__docId__": 164,
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe3",
+    "testId": 3,
+    "memberof": "test/dictionary-sync.js~describe2",
+    "testDepth": 1,
+    "longname": "test/dictionary-sync.js~describe2.describe3",
+    "access": null,
+    "description": "loadDictionaryForLanguage method",
+    "lineNumber": 25
+  },
+  {
+    "__docId__": 165,
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it4",
+    "testId": 4,
+    "memberof": "test/dictionary-sync.js~describe2.describe3",
+    "testDepth": 2,
+    "longname": "test/dictionary-sync.js~describe2.describe3.it4",
+    "access": null,
+    "description": "should download the German dictionary",
+    "lineNumber": 28
+  },
+  {
+    "__docId__": 166,
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it5",
+    "testId": 5,
+    "memberof": "test/dictionary-sync.js~describe2.describe3",
+    "testDepth": 2,
+    "longname": "test/dictionary-sync.js~describe2.describe3.it5",
+    "access": null,
+    "description": "should throw when we a language that isnt real",
+    "lineNumber": 35
+  },
+  {
+    "__docId__": 167,
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it6",
+    "testId": 6,
+    "memberof": "test/dictionary-sync.js~describe2.describe3",
+    "testDepth": 2,
+    "longname": "test/dictionary-sync.js~describe2.describe3.it6",
+    "access": null,
+    "description": "should throw when we try to load es-MX because Google doesnt have it",
+    "lineNumber": 49
+  },
+  {
+    "__docId__": 168,
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe7",
+    "testId": 7,
+    "memberof": "test/dictionary-sync.js~describe2",
+    "testDepth": 1,
+    "longname": "test/dictionary-sync.js~describe2.describe7",
+    "access": null,
+    "description": "preloadDictionaries",
+    "lineNumber": 64
+  },
+  {
+    "__docId__": 169,
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it8",
+    "testId": 8,
+    "memberof": "test/dictionary-sync.js~describe2.describe7",
+    "testDepth": 2,
+    "longname": "test/dictionary-sync.js~describe2.describe7.it8",
+    "access": null,
+    "description": "should preload some dictionaries",
+    "lineNumber": 67
+  },
+  {
+    "__docId__": 170,
+    "kind": "testFile",
+    "static": true,
+    "variation": null,
+    "name": "test/spell-check-handler.js",
+    "memberof": null,
+    "longname": "test/spell-check-handler.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import './support';\nimport path from 'path';\nimport rimraf from 'rimraf';\nimport {ReactiveTest, TestScheduler} from 'rx';\nimport FakeLocalStorage from '../src/fake-local-storage';\n\nimport DictionarySync from '../src/dictionary-sync';\nimport SpellCheckHandler from '../src/spell-check-handler';\n\nconst d = require('debug-electron')('electron-spellchecker-test:spell-check-handler');\n\nlet testCount = 0;\n\nconst deDE = \"Rechtschreibprüfungsleid ist eine Grunderfahrung und bezeichnet als Sammelbegriff all dasjenige, was einen Menschen körperlich und seelisch belastet.\";\n\ndescribe('The Spell Check Handler Class', function() {\n  beforeEach(function() {\n    this.tempCacheDir = path.join(__dirname, `__spell_check${testCount++}`);\n    this.sync = new DictionarySync(this.tempCacheDir);\n    this.fixture = new SpellCheckHandler(this.sync, new FakeLocalStorage());\n  });\n\n  afterEach(function() {\n    //console.log(this.tempCacheDir);\n    rimraf.sync(this.tempCacheDir);\n  });\n\n  describe('buildLikelyLocaleTable method', function() {\n    it('should have en in the list', async function() {\n      let result = await this.fixture.buildLikelyLocaleTable();\n      d(JSON.stringify(result));\n    \n      expect(result['en']).to.be.ok;\n    });\n  });\n\n  describe('the setLanguage method', function() {\n    this.timeout(30*1000);\n\n    it('should load a bunch of common languages', async function() {\n      await this.fixture.switchLanguage('en-US');\n\n      expect(this.fixture.currentSpellchecker.isMisspelled('bucket')).not.to.be.ok;\n      expect(this.fixture.currentSpellchecker.isMisspelled('Eimer')).to.be.ok;\n\n      await this.fixture.switchLanguage('de-DE');\n\n      expect(this.fixture.currentSpellchecker.isMisspelled('bucket')).to.be.ok;\n      expect(this.fixture.currentSpellchecker.isMisspelled('Eimer')).not.to.be.ok;\n    });\n\n    it.skip('should log some stuff', async function() {\n      // NB: This test is skipped because it will wreck the logger for the other\n      // tests, but it's still a good test!\n      let result = [];\n      SpellCheckHandler.setLogger((...args) => result.push(...args));\n\n      expect(result.length).to.equal(0);\n      await this.fixture.switchLanguage('de-DE');\n\n      let currentLength = result.length;\n      expect(result.length > 0).to.be.ok;\n\n      await this.fixture.switchLanguage('en-US');\n      expect(result.length > 0).to.be.ok;\n      expect(result.length > currentLength).to.be.ok;\n    });\n  });\n  \n  describe('the loadDictionaryForLanguageWithAlternatives method', function() {\n    this.timeout(30*1000);\n    \n    it('should load a simple example', async function() {\n      this.fixture.likelyLocaleTable = { 'en': 'en-US' };\n      let result = await this.fixture.loadDictionaryForLanguageWithAlternatives('en-US');\n      \n      expect(result.language).to.equal('en-US');\n    });\n    \n        \n    it('should load a fallback example', async function() {\n      // NB: Google doesn't have an es-MX dictionary\n      this.fixture.likelyLocaleTable = { 'es': 'es-ES' };\n      let result = await this.fixture.loadDictionaryForLanguageWithAlternatives('es-MX');\n      \n      expect(result.language).to.equal('es-ES');\n      expect(result.dictionary.length > 5000).to.be.ok;\n    });\n  });\n\n  describe('the attachToInput method', function() {\n    it('should use TestScheduler correctly', function() {\n      let scheduler = new TestScheduler();\n      let input = scheduler.createHotObservable(\n        ReactiveTest.onNext(250, 'This is a test of a long english sentence')\n      );\n\n      let items = [];\n      input.subscribe((x) => items.push(x));\n\n      expect(items.length).to.equal(0);\n\n      scheduler.advanceTo(100);\n      expect(items.length).to.equal(0);\n\n      scheduler.advanceTo(300);\n      expect(items.length).to.equal(1);\n    });\n\n    it('should detect the simple case of pasting in a long string', async function() {\n      this.timeout(15 * 1000);\n\n      let scheduler = new TestScheduler();\n      let input = scheduler.createHotObservable(\n        ReactiveTest.onNext(250, 'This is a test of a long english sentence')\n      );\n\n      this.fixture.scheduler = scheduler;\n      this.fixture.attachToInput(input);\n\n      expect(this.fixture.currentSpellcheckerLanguage).not.to.be.ok;\n      \n      scheduler.advanceTo(10 *1000);\n      await this.fixture.currentSpellcheckerChanged.take(1).toPromise();\n\n      expect(this.fixture.currentSpellcheckerLanguage).to.equal('en-US');\n    });\n    \n    it('should switch languages if users type different text', async function() {\n      this.timeout(15 * 1000);\n\n      let scheduler = new TestScheduler();\n      let input = scheduler.createHotObservable(\n        ReactiveTest.onNext(10, 'This is a test of a long english sentence'),\n        ReactiveTest.onNext(15*1000, ''),\n        ReactiveTest.onNext(30*1000, deDE)\n      ).do((x) => d(`Emitted ${x}`)).publish().refCount();\n\n      this.fixture.scheduler = scheduler;\n      this.fixture.attachToInput(input);\n\n      expect(this.fixture.currentSpellcheckerLanguage).not.to.be.ok;\n        \n      d('Advancing to +10s');\n      scheduler.advanceTo(10*1000);\n      await this.fixture.currentSpellcheckerChanged.take(1).toPromise();\n      expect(this.fixture.currentSpellcheckerLanguage).to.equal('en-US');    \n      \n      d('Advancing to +20s');\n      scheduler.advanceTo(20*1000);\n      await new Promise((req) => setTimeout(req, 50));\n      expect(this.fixture.currentSpellcheckerLanguage).to.equal('en-US');    \n            \n      d('Advancing to +50s, faking up some spelling mistakes');\n      scheduler.advanceTo(50*1000);\n      this.fixture.spellingErrorOccurred.onNext('ist');\n      this.fixture.spellingErrorOccurred.onNext('eine');\n      \n      d('Advancing to +60s');\n      scheduler.advanceTo(60*1000);\n      await this.fixture.currentSpellcheckerChanged.take(1).toPromise();\n      expect(this.fixture.currentSpellcheckerLanguage.substring(0,2)).to.equal('de');\n    });\n  });\n});\n"
+  },
+  {
+    "__docId__": 171,
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe9",
+    "testId": 9,
+    "memberof": "test/spell-check-handler.js",
+    "testDepth": 0,
+    "longname": "test/spell-check-handler.js~describe9",
+    "access": null,
+    "description": "The Spell Check Handler Class",
+    "lineNumber": 16
+  },
+  {
+    "__docId__": 172,
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe10",
+    "testId": 10,
+    "memberof": "test/spell-check-handler.js~describe9",
+    "testDepth": 1,
+    "longname": "test/spell-check-handler.js~describe9.describe10",
+    "access": null,
+    "description": "buildLikelyLocaleTable method",
+    "lineNumber": 28
+  },
+  {
+    "__docId__": 173,
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it11",
+    "testId": 11,
+    "memberof": "test/spell-check-handler.js~describe9.describe10",
+    "testDepth": 2,
+    "longname": "test/spell-check-handler.js~describe9.describe10.it11",
+    "access": null,
+    "description": "should have en in the list",
+    "lineNumber": 29
+  },
+  {
+    "__docId__": 174,
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe12",
+    "testId": 12,
+    "memberof": "test/spell-check-handler.js~describe9",
+    "testDepth": 1,
+    "longname": "test/spell-check-handler.js~describe9.describe12",
+    "access": null,
+    "description": "the setLanguage method",
+    "lineNumber": 37
+  },
+  {
+    "__docId__": 175,
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it13",
+    "testId": 13,
+    "memberof": "test/spell-check-handler.js~describe9.describe12",
+    "testDepth": 2,
+    "longname": "test/spell-check-handler.js~describe9.describe12.it13",
+    "access": null,
+    "description": "should load a bunch of common languages",
+    "lineNumber": 40
+  },
+  {
+    "__docId__": 176,
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe14",
+    "testId": 14,
+    "memberof": "test/spell-check-handler.js~describe9",
+    "testDepth": 1,
+    "longname": "test/spell-check-handler.js~describe9.describe14",
+    "access": null,
+    "description": "the loadDictionaryForLanguageWithAlternatives method",
+    "lineNumber": 70
+  },
+  {
+    "__docId__": 177,
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it15",
+    "testId": 15,
+    "memberof": "test/spell-check-handler.js~describe9.describe14",
+    "testDepth": 2,
+    "longname": "test/spell-check-handler.js~describe9.describe14.it15",
+    "access": null,
+    "description": "should load a simple example",
+    "lineNumber": 73
+  },
+  {
+    "__docId__": 178,
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it16",
+    "testId": 16,
+    "memberof": "test/spell-check-handler.js~describe9.describe14",
+    "testDepth": 2,
+    "longname": "test/spell-check-handler.js~describe9.describe14.it16",
+    "access": null,
+    "description": "should load a fallback example",
+    "lineNumber": 81
+  },
+  {
+    "__docId__": 179,
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe17",
+    "testId": 17,
+    "memberof": "test/spell-check-handler.js~describe9",
+    "testDepth": 1,
+    "longname": "test/spell-check-handler.js~describe9.describe17",
+    "access": null,
+    "description": "the attachToInput method",
+    "lineNumber": 91
+  },
+  {
+    "__docId__": 180,
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it18",
+    "testId": 18,
+    "memberof": "test/spell-check-handler.js~describe9.describe17",
+    "testDepth": 2,
+    "longname": "test/spell-check-handler.js~describe9.describe17.it18",
+    "access": null,
+    "description": "should use TestScheduler correctly",
+    "lineNumber": 92
+  },
+  {
+    "__docId__": 181,
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it19",
+    "testId": 19,
+    "memberof": "test/spell-check-handler.js~describe9.describe17",
+    "testDepth": 2,
+    "longname": "test/spell-check-handler.js~describe9.describe17.it19",
+    "access": null,
+    "description": "should detect the simple case of pasting in a long string",
+    "lineNumber": 110
+  },
+  {
+    "__docId__": 182,
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it20",
+    "testId": 20,
+    "memberof": "test/spell-check-handler.js~describe9.describe17",
+    "testDepth": 2,
+    "longname": "test/spell-check-handler.js~describe9.describe17.it20",
+    "access": null,
+    "description": "should switch languages if users type different text",
+    "lineNumber": 129
+  },
+  {
+    "__docId__": 183,
+    "kind": "testFile",
+    "static": true,
+    "variation": null,
+    "name": "test/support.js",
+    "memberof": null,
+    "longname": "test/support.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import '../src/babel-maybefill';\n\nlet chai = require(\"chai\");\nlet chaiAsPromised = require(\"chai-as-promised\");\n\nchai.should();\nchai.use(chaiAsPromised);\n\nglobal.chai = chai;\nglobal.chaiAsPromised = chaiAsPromised;\nglobal.expect = chai.expect;\nglobal.AssertionError = chai.AssertionError;\nglobal.Assertion = chai.Assertion;\nglobal.assert = chai.assert;\n"
+  },
+  {
+    "__docId__": 184,
+    "kind": "testFile",
+    "static": true,
+    "variation": null,
+    "name": "test/utility.js",
+    "memberof": null,
+    "longname": "test/utility.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import './support';\nimport {normalizeLanguageCode} from '../src/utility';\n\ndescribe('The Utility file', function() {\n\n  describe('normalizeLanguageCode method', function() {\n    it('should consider all of these valid', function() {\n      ['en-us', 'en-US', 'de_de', 'de_DE'].map((x) => normalizeLanguageCode(x));\n    });\n  });\n});\n"
+  },
+  {
+    "__docId__": 185,
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe21",
+    "testId": 21,
+    "memberof": "test/utility.js",
+    "testDepth": 0,
+    "longname": "test/utility.js~describe21",
+    "access": null,
+    "description": "The Utility file",
+    "lineNumber": 4
+  },
+  {
+    "__docId__": 186,
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe22",
+    "testId": 22,
+    "memberof": "test/utility.js~describe21",
+    "testDepth": 1,
+    "longname": "test/utility.js~describe21.describe22",
+    "access": null,
+    "description": "normalizeLanguageCode method",
+    "lineNumber": 6
+  },
+  {
+    "__docId__": 187,
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it23",
+    "testId": 23,
+    "memberof": "test/utility.js~describe21.describe22",
+    "testDepth": 2,
+    "longname": "test/utility.js~describe21.describe22.it23",
+    "access": null,
+    "description": "should consider all of these valid",
+    "lineNumber": 7
+  }
+]

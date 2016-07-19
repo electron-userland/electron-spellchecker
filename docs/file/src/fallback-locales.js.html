@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <base data-ice="baseUrl" href="../../">
+  <title data-ice="title">src/fallback-locales.js | electron-compilers API Document</title>
+  <link type="text/css" rel="stylesheet" href="css/style.css">
+  <link type="text/css" rel="stylesheet" href="css/prettify-tomorrow.css">
+  <script src="script/prettify/prettify.js"></script>
+  
+  
+  <script src="script/manual.js"></script>
+</head>
+<body class="layout-container" data-ice="rootContainer">
+
+<header>
+  <a href="./">Home</a>
+  
+  <a href="identifiers.html">Reference</a>
+  <a href="source.html">Source</a>
+  <a href="test.html" data-ice="testLink">Test</a>
+  <a data-ice="repoURL" href="https://github.com/paulcbetts/electron-spellchecker" class="repo-url-github">Repository</a>
+  <div class="search-box">
+  <span>
+    <img src="./image/search.png">
+    <span class="search-input-edge"></span><input class="search-input"><span class="search-input-edge"></span>
+  </span>
+    <ul class="search-result"></ul>
+  </div>
+</header>
+
+<nav class="navigation" data-ice="nav"><div>
+  <ul>
+    
+  <li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/context-menu-builder.js~ContextMenuBuilder.html">ContextMenuBuilder</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/context-menu-listener.js~ContextMenuListener.html">ContextMenuListener</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/dictionary-sync.js~DictionarySync.html">DictionarySync</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/fake-local-storage.js~FakeLocalStorage.html">FakeLocalStorage</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/spell-check-handler.js~SpellCheckHandler.html">SpellCheckHandler</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-function">F</span><span data-ice="name"><span><a href="function/index.html#static-function-normalizeLanguageCode">normalizeLanguageCode</a></span></span></li>
+</ul>
+</div>
+</nav>
+
+<div class="content" data-ice="content"><h1 data-ice="title">src/fallback-locales.js</h1>
+<pre class="source-code line-number raw-source-code"><code class="prettyprint linenums" data-ice="content">// Defines the fallback locales for a given language (i.e. if we detect the given
+// language but have no further indication as to what locale the user is in, we
+// will try this one instead). Data is mostly sourced from 
+// http://lh.2xlibre.net/locales
+
+module.exports = {
+  &quot;aa&quot;: &quot;aa-ET&quot;,
+  &quot;af&quot;: &quot;af-ZA&quot;,
+  &quot;ak&quot;: &quot;ak-GH&quot;,
+  &quot;am&quot;: &quot;am-ET&quot;,
+  &quot;an&quot;: &quot;an-ES&quot;,
+  &quot;ar&quot;: &quot;ar-MA&quot;,
+  &quot;as&quot;: &quot;as-IN&quot;,
+  &quot;ay&quot;: &quot;ay-PE&quot;,
+  &quot;az&quot;: &quot;az-AZ&quot;,
+  &quot;be&quot;: &quot;be-BY&quot;,
+  &quot;bg&quot;: &quot;bg-BG&quot;,
+  &quot;bi&quot;: &quot;bi-TV&quot;,
+  &quot;bn&quot;: &quot;bn-BD&quot;,
+  &quot;bo&quot;: &quot;bo-CN&quot;,
+  &quot;br&quot;: &quot;br-FR&quot;,
+  &quot;bs&quot;: &quot;bs-BA&quot;,
+  &quot;ca&quot;: &quot;ca-ES&quot;,
+  &quot;ce&quot;: &quot;ce-RU&quot;,
+  &quot;cs&quot;: &quot;cs-CZ&quot;,
+  &quot;cv&quot;: &quot;cv-RU&quot;,
+  &quot;cy&quot;: &quot;cy-GB&quot;,
+  &quot;da&quot;: &quot;da-DK&quot;,
+  &quot;de&quot;: &quot;de-DE&quot;,
+  &quot;dv&quot;: &quot;dv-MV&quot;,
+  &quot;dz&quot;: &quot;dz-BT&quot;,
+  &quot;el&quot;: &quot;el-GR&quot;,
+  &quot;en&quot;: &quot;en-US&quot;,
+  &quot;es&quot;: &quot;es-ES&quot;,
+  &quot;et&quot;: &quot;et-EE&quot;,
+  &quot;eu&quot;: &quot;eu-ES&quot;,
+  &quot;fa&quot;: &quot;fa-IR&quot;,
+  &quot;ff&quot;: &quot;ff-SN&quot;,
+  &quot;fi&quot;: &quot;fi-FI&quot;,
+  &quot;fo&quot;: &quot;fo-FO&quot;,
+  &quot;fr&quot;: &quot;fr-FR&quot;,
+  &quot;fy&quot;: &quot;fy-DE&quot;,
+  &quot;ga&quot;: &quot;ga-IE&quot;,
+  &quot;gd&quot;: &quot;gd-GB&quot;,
+  &quot;gl&quot;: &quot;gl-ES&quot;,
+  &quot;gu&quot;: &quot;gu-IN&quot;,
+  &quot;gv&quot;: &quot;gv-GB&quot;,
+  &quot;ha&quot;: &quot;ha-NG&quot;,
+  &quot;he&quot;: &quot;he-IL&quot;,
+  &quot;hi&quot;: &quot;hi-IN&quot;,
+  &quot;hr&quot;: &quot;hr-HR&quot;,
+  &quot;ht&quot;: &quot;ht-HT&quot;,
+  &quot;hu&quot;: &quot;hu-HU&quot;,
+  &quot;hy&quot;: &quot;hy-AM&quot;,
+  &quot;ia&quot;: &quot;ia-FR&quot;,
+  &quot;id&quot;: &quot;id-ID&quot;,
+  &quot;ig&quot;: &quot;ig-NG&quot;,
+  &quot;ik&quot;: &quot;ik-CA&quot;,
+  &quot;is&quot;: &quot;is-IS&quot;,
+  &quot;it&quot;: &quot;it-IT&quot;,
+  &quot;iu&quot;: &quot;iu-CA&quot;,
+  &quot;ja&quot;: &quot;ja-JP&quot;,
+  &quot;ka&quot;: &quot;ka-GE&quot;,
+  &quot;kk&quot;: &quot;kk-KZ&quot;,
+  &quot;kl&quot;: &quot;kl-GL&quot;,
+  &quot;km&quot;: &quot;km-KH&quot;,
+  &quot;kn&quot;: &quot;kn-IN&quot;,
+  &quot;ko&quot;: &quot;ko-KR&quot;,
+  &quot;ks&quot;: &quot;ks-IN&quot;,
+  &quot;ku&quot;: &quot;ku-TR&quot;,
+  &quot;kw&quot;: &quot;kw-GB&quot;,
+  &quot;ky&quot;: &quot;ky-KG&quot;,
+  &quot;lb&quot;: &quot;lb-LU&quot;,
+  &quot;lg&quot;: &quot;lg-UG&quot;,
+  &quot;li&quot;: &quot;li-BE&quot;,
+  &quot;ln&quot;: &quot;ln-CD&quot;,
+  &quot;lo&quot;: &quot;lo-LA&quot;,
+  &quot;lt&quot;: &quot;lt-LT&quot;,
+  &quot;lv&quot;: &quot;lv-LV&quot;,
+  &quot;mg&quot;: &quot;mg-MG&quot;,
+  &quot;mh&quot;: &quot;mh-MH&quot;,
+  &quot;mi&quot;: &quot;mi-NZ&quot;,
+  &quot;mk&quot;: &quot;mk-MK&quot;,
+  &quot;ml&quot;: &quot;ml-IN&quot;,
+  &quot;mn&quot;: &quot;mn-MN&quot;,
+  &quot;mr&quot;: &quot;mr-IN&quot;,
+  &quot;ms&quot;: &quot;ms-MY&quot;,
+  &quot;mt&quot;: &quot;mt-MT&quot;,
+  &quot;my&quot;: &quot;my-MM&quot;,
+  &quot;nb&quot;: &quot;nb-NO&quot;,
+  &quot;ne&quot;: &quot;ne-NP&quot;,
+  &quot;nl&quot;: &quot;nl-NL&quot;,
+  &quot;nn&quot;: &quot;nn-NO&quot;,
+  &quot;nr&quot;: &quot;nr-ZA&quot;,
+  &quot;oc&quot;: &quot;oc-FR&quot;,
+  &quot;om&quot;: &quot;om-KE&quot;,
+  &quot;or&quot;: &quot;or-IN&quot;,
+  &quot;os&quot;: &quot;os-RU&quot;,
+  &quot;pa&quot;: &quot;pa-PK&quot;,
+  &quot;pl&quot;: &quot;pl-PL&quot;,
+  &quot;ps&quot;: &quot;ps-AF&quot;,
+  &quot;pt&quot;: &quot;pt-PT&quot;,
+  &quot;ro&quot;: &quot;ro-RO&quot;,
+  &quot;ru&quot;: &quot;ru-RU&quot;,
+  &quot;rw&quot;: &quot;rw-RW&quot;,
+  &quot;sa&quot;: &quot;sa-IN&quot;,
+  &quot;sc&quot;: &quot;sc-IT&quot;,
+  &quot;sd&quot;: &quot;sd-IN&quot;,
+  &quot;se&quot;: &quot;se-NO&quot;,
+  &quot;si&quot;: &quot;si-LK&quot;,
+  &quot;sk&quot;: &quot;sk-SK&quot;,
+  &quot;sl&quot;: &quot;sl-SI&quot;,
+  &quot;so&quot;: &quot;so-SO&quot;,
+  &quot;sq&quot;: &quot;sq-AL&quot;,
+  &quot;sr&quot;: &quot;sr-RS&quot;,
+  &quot;ss&quot;: &quot;ss-ZA&quot;,
+  &quot;st&quot;: &quot;st-ZA&quot;,
+  &quot;sv&quot;: &quot;sv-SE&quot;,
+  &quot;sw&quot;: &quot;sw-KE&quot;,
+  &quot;ta&quot;: &quot;ta-IN&quot;,
+  &quot;te&quot;: &quot;te-IN&quot;,
+  &quot;tg&quot;: &quot;tg-TJ&quot;,
+  &quot;th&quot;: &quot;th-TH&quot;,
+  &quot;ti&quot;: &quot;ti-ER&quot;,
+  &quot;tk&quot;: &quot;tk-TM&quot;,
+  &quot;tl&quot;: &quot;tl-PH&quot;,
+  &quot;tn&quot;: &quot;tn-ZA&quot;,
+  &quot;tr&quot;: &quot;tr-TR&quot;,
+  &quot;ts&quot;: &quot;ts-ZA&quot;,
+  &quot;tt&quot;: &quot;tt-RU&quot;,
+  &quot;ug&quot;: &quot;ug-CN&quot;,
+  &quot;uk&quot;: &quot;uk-UA&quot;,
+  &quot;ur&quot;: &quot;ur-PK&quot;,
+  &quot;uz&quot;: &quot;uz-UZ&quot;,
+  &quot;ve&quot;: &quot;ve-ZA&quot;,
+  &quot;vi&quot;: &quot;vi-VN&quot;,
+  &quot;wa&quot;: &quot;wa-BE&quot;,
+  &quot;wo&quot;: &quot;wo-SN&quot;,
+  &quot;xh&quot;: &quot;xh-ZA&quot;,
+  &quot;yi&quot;: &quot;yi-US&quot;,
+  &quot;yo&quot;: &quot;yo-NG&quot;,
+  &quot;zh&quot;: &quot;zh-CN&quot;,
+  &quot;zu&quot;: &quot;zu-ZA&quot;
+};
+</code></pre>
+
+</div>
+
+<footer class="footer">
+  Generated by <a href="https://esdoc.org">ESDoc<span data-ice="esdocVersion">(0.4.7)</span></a>
+</footer>
+
+<script src="script/search_index.js"></script>
+<script src="script/search.js"></script>
+<script src="script/pretty-print.js"></script>
+<script src="script/inherited-summary.js"></script>
+<script src="script/test-summary.js"></script>
+<script src="script/inner-link.js"></script>
+<script src="script/patch-for-local.js"></script>
+</body>
+</html>

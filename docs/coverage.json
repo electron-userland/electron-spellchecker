@@ -1,0 +1,66 @@
+{
+  "coverage": "60.65%",
+  "expectCount": 61,
+  "actualCount": 37,
+  "files": {
+    "src/context-menu-builder.js": {
+      "expectCount": 22,
+      "actualCount": 18,
+      "undocumentLines": [
+        26,
+        27,
+        24,
+        25
+      ]
+    },
+    "src/context-menu-listener.js": {
+      "expectCount": 5,
+      "actualCount": 4,
+      "undocumentLines": [
+        24
+      ]
+    },
+    "src/dictionary-sync.js": {
+      "expectCount": 6,
+      "actualCount": 5,
+      "undocumentLines": [
+        32
+      ]
+    },
+    "src/fake-local-storage.js": {
+      "expectCount": 5,
+      "actualCount": 0,
+      "undocumentLines": [
+        1,
+        2,
+        6,
+        3,
+        10
+      ]
+    },
+    "src/spell-check-handler.js": {
+      "expectCount": 22,
+      "actualCount": 9,
+      "undocumentLines": [
+        93,
+        95,
+        94,
+        91,
+        110,
+        352,
+        444,
+        105,
+        99,
+        100,
+        96,
+        97,
+        92
+      ]
+    },
+    "src/utility.js": {
+      "expectCount": 1,
+      "actualCount": 1,
+      "undocumentLines": []
+    }
+  }
+}

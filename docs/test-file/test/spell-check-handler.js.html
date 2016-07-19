@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <base data-ice="baseUrl" href="../../">
+  <title data-ice="title">test/spell-check-handler.js | electron-compilers API Document</title>
+  <link type="text/css" rel="stylesheet" href="css/style.css">
+  <link type="text/css" rel="stylesheet" href="css/prettify-tomorrow.css">
+  <script src="script/prettify/prettify.js"></script>
+  
+  
+  <script src="script/manual.js"></script>
+</head>
+<body class="layout-container" data-ice="rootContainer">
+
+<header>
+  <a href="./">Home</a>
+  
+  <a href="identifiers.html">Reference</a>
+  <a href="source.html">Source</a>
+  <a href="test.html" data-ice="testLink">Test</a>
+  <a data-ice="repoURL" href="https://github.com/paulcbetts/electron-spellchecker" class="repo-url-github">Repository</a>
+  <div class="search-box">
+  <span>
+    <img src="./image/search.png">
+    <span class="search-input-edge"></span><input class="search-input"><span class="search-input-edge"></span>
+  </span>
+    <ul class="search-result"></ul>
+  </div>
+</header>
+
+<nav class="navigation" data-ice="nav"><div>
+  <ul>
+    
+  <li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/context-menu-builder.js~ContextMenuBuilder.html">ContextMenuBuilder</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/context-menu-listener.js~ContextMenuListener.html">ContextMenuListener</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/dictionary-sync.js~DictionarySync.html">DictionarySync</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/fake-local-storage.js~FakeLocalStorage.html">FakeLocalStorage</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/spell-check-handler.js~SpellCheckHandler.html">SpellCheckHandler</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-function">F</span><span data-ice="name"><span><a href="function/index.html#static-function-normalizeLanguageCode">normalizeLanguageCode</a></span></span></li>
+</ul>
+</div>
+</nav>
+
+<div class="content" data-ice="content"><h1 data-ice="title">test/spell-check-handler.js</h1>
+<pre class="source-code line-number raw-source-code"><code class="prettyprint linenums" data-ice="content">import &apos;./support&apos;;
+import path from &apos;path&apos;;
+import rimraf from &apos;rimraf&apos;;
+import {ReactiveTest, TestScheduler} from &apos;rx&apos;;
+import FakeLocalStorage from &apos;../src/fake-local-storage&apos;;
+
+import DictionarySync from &apos;../src/dictionary-sync&apos;;
+import SpellCheckHandler from &apos;../src/spell-check-handler&apos;;
+
+const d = require(&apos;debug-electron&apos;)(&apos;electron-spellchecker-test:spell-check-handler&apos;);
+
+let testCount = 0;
+
+const deDE = &quot;Rechtschreibpr&#xFC;fungsleid ist eine Grunderfahrung und bezeichnet als Sammelbegriff all dasjenige, was einen Menschen k&#xF6;rperlich und seelisch belastet.&quot;;
+
+describe(&apos;The Spell Check Handler Class&apos;, function() {
+  beforeEach(function() {
+    this.tempCacheDir = path.join(__dirname, `__spell_check${testCount++}`);
+    this.sync = new DictionarySync(this.tempCacheDir);
+    this.fixture = new SpellCheckHandler(this.sync, new FakeLocalStorage());
+  });
+
+  afterEach(function() {
+    //console.log(this.tempCacheDir);
+    rimraf.sync(this.tempCacheDir);
+  });
+
+  describe(&apos;buildLikelyLocaleTable method&apos;, function() {
+    it(&apos;should have en in the list&apos;, async function() {
+      let result = await this.fixture.buildLikelyLocaleTable();
+      d(JSON.stringify(result));
+    
+      expect(result[&apos;en&apos;]).to.be.ok;
+    });
+  });
+
+  describe(&apos;the setLanguage method&apos;, function() {
+    this.timeout(30*1000);
+
+    it(&apos;should load a bunch of common languages&apos;, async function() {
+      await this.fixture.switchLanguage(&apos;en-US&apos;);
+
+      expect(this.fixture.currentSpellchecker.isMisspelled(&apos;bucket&apos;)).not.to.be.ok;
+      expect(this.fixture.currentSpellchecker.isMisspelled(&apos;Eimer&apos;)).to.be.ok;
+
+      await this.fixture.switchLanguage(&apos;de-DE&apos;);
+
+      expect(this.fixture.currentSpellchecker.isMisspelled(&apos;bucket&apos;)).to.be.ok;
+      expect(this.fixture.currentSpellchecker.isMisspelled(&apos;Eimer&apos;)).not.to.be.ok;
+    });
+
+    it.skip(&apos;should log some stuff&apos;, async function() {
+      // NB: This test is skipped because it will wreck the logger for the other
+      // tests, but it&apos;s still a good test!
+      let result = [];
+      SpellCheckHandler.setLogger((...args) =&gt; result.push(...args));
+
+      expect(result.length).to.equal(0);
+      await this.fixture.switchLanguage(&apos;de-DE&apos;);
+
+      let currentLength = result.length;
+      expect(result.length &gt; 0).to.be.ok;
+
+      await this.fixture.switchLanguage(&apos;en-US&apos;);
+      expect(result.length &gt; 0).to.be.ok;
+      expect(result.length &gt; currentLength).to.be.ok;
+    });
+  });
+  
+  describe(&apos;the loadDictionaryForLanguageWithAlternatives method&apos;, function() {
+    this.timeout(30*1000);
+    
+    it(&apos;should load a simple example&apos;, async function() {
+      this.fixture.likelyLocaleTable = { &apos;en&apos;: &apos;en-US&apos; };
+      let result = await this.fixture.loadDictionaryForLanguageWithAlternatives(&apos;en-US&apos;);
+      
+      expect(result.language).to.equal(&apos;en-US&apos;);
+    });
+    
+        
+    it(&apos;should load a fallback example&apos;, async function() {
+      // NB: Google doesn&apos;t have an es-MX dictionary
+      this.fixture.likelyLocaleTable = { &apos;es&apos;: &apos;es-ES&apos; };
+      let result = await this.fixture.loadDictionaryForLanguageWithAlternatives(&apos;es-MX&apos;);
+      
+      expect(result.language).to.equal(&apos;es-ES&apos;);
+      expect(result.dictionary.length &gt; 5000).to.be.ok;
+    });
+  });
+
+  describe(&apos;the attachToInput method&apos;, function() {
+    it(&apos;should use TestScheduler correctly&apos;, function() {
+      let scheduler = new TestScheduler();
+      let input = scheduler.createHotObservable(
+        ReactiveTest.onNext(250, &apos;This is a test of a long english sentence&apos;)
+      );
+
+      let items = [];
+      input.subscribe((x) =&gt; items.push(x));
+
+      expect(items.length).to.equal(0);
+
+      scheduler.advanceTo(100);
+      expect(items.length).to.equal(0);
+
+      scheduler.advanceTo(300);
+      expect(items.length).to.equal(1);
+    });
+
+    it(&apos;should detect the simple case of pasting in a long string&apos;, async function() {
+      this.timeout(15 * 1000);
+
+      let scheduler = new TestScheduler();
+      let input = scheduler.createHotObservable(
+        ReactiveTest.onNext(250, &apos;This is a test of a long english sentence&apos;)
+      );
+
+      this.fixture.scheduler = scheduler;
+      this.fixture.attachToInput(input);
+
+      expect(this.fixture.currentSpellcheckerLanguage).not.to.be.ok;
+      
+      scheduler.advanceTo(10 *1000);
+      await this.fixture.currentSpellcheckerChanged.take(1).toPromise();
+
+      expect(this.fixture.currentSpellcheckerLanguage).to.equal(&apos;en-US&apos;);
+    });
+    
+    it(&apos;should switch languages if users type different text&apos;, async function() {
+      this.timeout(15 * 1000);
+
+      let scheduler = new TestScheduler();
+      let input = scheduler.createHotObservable(
+        ReactiveTest.onNext(10, &apos;This is a test of a long english sentence&apos;),
+        ReactiveTest.onNext(15*1000, &apos;&apos;),
+        ReactiveTest.onNext(30*1000, deDE)
+      ).do((x) =&gt; d(`Emitted ${x}`)).publish().refCount();
+
+      this.fixture.scheduler = scheduler;
+      this.fixture.attachToInput(input);
+
+      expect(this.fixture.currentSpellcheckerLanguage).not.to.be.ok;
+        
+      d(&apos;Advancing to +10s&apos;);
+      scheduler.advanceTo(10*1000);
+      await this.fixture.currentSpellcheckerChanged.take(1).toPromise();
+      expect(this.fixture.currentSpellcheckerLanguage).to.equal(&apos;en-US&apos;);    
+      
+      d(&apos;Advancing to +20s&apos;);
+      scheduler.advanceTo(20*1000);
+      await new Promise((req) =&gt; setTimeout(req, 50));
+      expect(this.fixture.currentSpellcheckerLanguage).to.equal(&apos;en-US&apos;);    
+            
+      d(&apos;Advancing to +50s, faking up some spelling mistakes&apos;);
+      scheduler.advanceTo(50*1000);
+      this.fixture.spellingErrorOccurred.onNext(&apos;ist&apos;);
+      this.fixture.spellingErrorOccurred.onNext(&apos;eine&apos;);
+      
+      d(&apos;Advancing to +60s&apos;);
+      scheduler.advanceTo(60*1000);
+      await this.fixture.currentSpellcheckerChanged.take(1).toPromise();
+      expect(this.fixture.currentSpellcheckerLanguage.substring(0,2)).to.equal(&apos;de&apos;);
+    });
+  });
+});
+</code></pre>
+
+</div>
+
+<footer class="footer">
+  Generated by <a href="https://esdoc.org">ESDoc<span data-ice="esdocVersion">(0.4.7)</span></a>
+</footer>
+
+<script src="script/search_index.js"></script>
+<script src="script/search.js"></script>
+<script src="script/pretty-print.js"></script>
+<script src="script/inherited-summary.js"></script>
+<script src="script/test-summary.js"></script>
+<script src="script/inner-link.js"></script>
+<script src="script/patch-for-local.js"></script>
+</body>
+</html>

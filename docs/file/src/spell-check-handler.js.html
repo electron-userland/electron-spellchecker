@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <base data-ice="baseUrl" href="../../">
+  <title data-ice="title">src/spell-check-handler.js | electron-compilers API Document</title>
+  <link type="text/css" rel="stylesheet" href="css/style.css">
+  <link type="text/css" rel="stylesheet" href="css/prettify-tomorrow.css">
+  <script src="script/prettify/prettify.js"></script>
+  
+  
+  <script src="script/manual.js"></script>
+</head>
+<body class="layout-container" data-ice="rootContainer">
+
+<header>
+  <a href="./">Home</a>
+  
+  <a href="identifiers.html">Reference</a>
+  <a href="source.html">Source</a>
+  <a href="test.html" data-ice="testLink">Test</a>
+  <a data-ice="repoURL" href="https://github.com/paulcbetts/electron-spellchecker" class="repo-url-github">Repository</a>
+  <div class="search-box">
+  <span>
+    <img src="./image/search.png">
+    <span class="search-input-edge"></span><input class="search-input"><span class="search-input-edge"></span>
+  </span>
+    <ul class="search-result"></ul>
+  </div>
+</header>
+
+<nav class="navigation" data-ice="nav"><div>
+  <ul>
+    
+  <li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/context-menu-builder.js~ContextMenuBuilder.html">ContextMenuBuilder</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/context-menu-listener.js~ContextMenuListener.html">ContextMenuListener</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/dictionary-sync.js~DictionarySync.html">DictionarySync</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/fake-local-storage.js~FakeLocalStorage.html">FakeLocalStorage</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-class">C</span><span data-ice="name"><span><a href="class/src/spell-check-handler.js~SpellCheckHandler.html">SpellCheckHandler</a></span></span></li>
+<li data-ice="doc"><span data-ice="kind" class="kind-function">F</span><span data-ice="name"><span><a href="function/index.html#static-function-normalizeLanguageCode">normalizeLanguageCode</a></span></span></li>
+</ul>
+</div>
+</nav>
+
+<div class="content" data-ice="content"><h1 data-ice="title">src/spell-check-handler.js</h1>
+<pre class="source-code line-number raw-source-code"><code class="prettyprint linenums" data-ice="content">import {CompositeDisposable, Disposable, Observable, Scheduler, SerialDisposable, Subject} from &apos;rx&apos;;
+import {getInstalledKeyboardLanguages} from &apos;keyboard-layout&apos;;
+import {spawn} from &apos;spawn-rx&apos;;
+
+import &apos;./custom-operators&apos;;
+import DictionarySync from &apos;./dictionary-sync&apos;;
+import {normalizeLanguageCode} from &apos;./utility&apos;;
+import FakeLocalStorage from &apos;./fake-local-storage&apos;;
+
+import {Spellchecker} from &apos;./node-spellchecker&apos;;
+
+let d = require(&apos;debug-electron&apos;)(&apos;electron-spellchecker:spell-check-handler&apos;);
+
+let cld = null;
+let fallbackLocaleTable = null;
+let webFrame = (process.type === &apos;renderer&apos; ?
+  require(&apos;electron&apos;).webFrame :
+  null);
+
+// NB: Linux and Windows uses underscore in languages (i.e. &apos;en_US&apos;), whereas
+// we&apos;re trying really hard to match the Chromium way of `en-US`
+const validLangCodeWindowsLinux = /[a-z]{2}[_][A-Z]{2}/;
+
+// NB: This is to work around electron/electron#1005, where contractions
+// are incorrectly marked as spelling errors. This lets people get away with
+// incorrectly spelled contracted words, but it&apos;s the best we can do for now.
+const contractions = [
+  &quot;ain&apos;t&quot;, &quot;aren&apos;t&quot;, &quot;can&apos;t&quot;, &quot;could&apos;ve&quot;, &quot;couldn&apos;t&quot;, &quot;couldn&apos;t&apos;ve&quot;, &quot;didn&apos;t&quot;, &quot;doesn&apos;t&quot;, &quot;don&apos;t&quot;, &quot;hadn&apos;t&quot;,
+  &quot;hadn&apos;t&apos;ve&quot;, &quot;hasn&apos;t&quot;, &quot;haven&apos;t&quot;, &quot;he&apos;d&quot;, &quot;he&apos;d&apos;ve&quot;, &quot;he&apos;ll&quot;, &quot;he&apos;s&quot;, &quot;how&apos;d&quot;, &quot;how&apos;ll&quot;, &quot;how&apos;s&quot;, &quot;I&apos;d&quot;,
+  &quot;I&apos;d&apos;ve&quot;, &quot;I&apos;ll&quot;, &quot;I&apos;m&quot;, &quot;I&apos;ve&quot;, &quot;isn&apos;t&quot;, &quot;it&apos;d&quot;, &quot;it&apos;d&apos;ve&quot;, &quot;it&apos;ll&quot;, &quot;it&apos;s&quot;, &quot;let&apos;s&quot;, &quot;ma&apos;am&quot;, &quot;mightn&apos;t&quot;,
+  &quot;mightn&apos;t&apos;ve&quot;, &quot;might&apos;ve&quot;, &quot;mustn&apos;t&quot;, &quot;must&apos;ve&quot;, &quot;needn&apos;t&quot;, &quot;not&apos;ve&quot;, &quot;o&apos;clock&quot;, &quot;shan&apos;t&quot;, &quot;she&apos;d&quot;, &quot;she&apos;d&apos;ve&quot;,
+  &quot;she&apos;ll&quot;, &quot;she&apos;s&quot;, &quot;should&apos;ve&quot;, &quot;shouldn&apos;t&quot;, &quot;shouldn&apos;t&apos;ve&quot;, &quot;that&apos;ll&quot;, &quot;that&apos;s&quot;, &quot;there&apos;d&quot;, &quot;there&apos;d&apos;ve&quot;,
+  &quot;there&apos;re&quot;, &quot;there&apos;s&quot;, &quot;they&apos;d&quot;, &quot;they&apos;d&apos;ve&quot;, &quot;they&apos;ll&quot;, &quot;they&apos;re&quot;, &quot;they&apos;ve&quot;, &quot;wasn&apos;t&quot;, &quot;we&apos;d&quot;, &quot;we&apos;d&apos;ve&quot;,
+  &quot;we&apos;ll&quot;, &quot;we&apos;re&quot;, &quot;we&apos;ve&quot;, &quot;weren&apos;t&quot;, &quot;what&apos;ll&quot;, &quot;what&apos;re&quot;, &quot;what&apos;s&quot;, &quot;what&apos;ve&quot;, &quot;when&apos;s&quot;, &quot;where&apos;d&quot;,
+  &quot;where&apos;s&quot;, &quot;where&apos;ve&quot;, &quot;who&apos;d&quot;, &quot;who&apos;ll&quot;, &quot;who&apos;re&quot;, &quot;who&apos;s&quot;, &quot;who&apos;ve&quot;, &quot;why&apos;ll&quot;, &quot;why&apos;re&quot;, &quot;why&apos;s&quot;, &quot;won&apos;t&quot;,
+  &quot;would&apos;ve&quot;, &quot;wouldn&apos;t&quot;, &quot;wouldn&apos;t&apos;ve&quot;, &quot;y&apos;all&quot;, &quot;y&apos;all&apos;d&apos;ve&quot;, &quot;you&apos;d&quot;, &quot;you&apos;d&apos;ve&quot;, &quot;you&apos;ll&quot;, &quot;you&apos;re&quot;, &quot;you&apos;ve&quot;
+];
+
+const contractionMap = contractions.reduce((acc, word) =&gt; {
+  acc[word.replace(/&apos;.*/, &apos;&apos;)] = true;
+  return acc;
+}, {});
+
+/**
+ * This method mimics Observable.fromEvent, but with capture semantics.
+ */
+function fromEventCapture(element, name) {
+  return Observable.create((subj) =&gt; {
+    const handler = function(...args) {
+      if (args.length &gt; 1) {
+        subj.onNext(args);
+      } else {
+        subj.onNext(args[0] || true);
+      }
+    };
+
+    element.addEventListener(name, handler, true);
+    return Disposable.create(() =&gt; element.removeEventListener(name, handler, true));
+  });
+}
+
+/**
+ * SpellCheckHandler is the main class of this library, and handles all of the
+ * different pieces of spell checking except for the context menu information.
+ *
+ * Instantiate the class, then call {{attachToInput}} to wire it up. The spell
+ * checker will attempt to automatically check the language that the user is 
+ * typing in and switch on-the fly. However, giving it an explicit hint by 
+ * calling {{switchLanguage}}, or providing it a block of sample text via 
+ * {{provideHintText}} will result in much better results.
+ *
+ * Sample text should be text that is reasonably likely to be in the same language
+ * as the user typing - for example, in an Email reply box, the original Email text
+ * would be a great sample, or in the case of Slack, the existing channel messages
+ * are used as the sample text.
+ */
+export default class SpellCheckHandler {
+  /**
+   * Constructs a SpellCheckHandler
+   * 
+   * @param  {DictionarySync} dictionarySync  An instance of {{DictionarySync}},
+   *                                          create a custom one if you want
+   *                                          to override the dictionary cache
+   *                                          location.
+   * @param  {LocalStorage} localStorage      An implementation of localStorage
+   *                                          used for testing.
+   * @param  {Scheduler} scheduler            The Rx scheduler to use, for 
+   *                                          testing.
+   */
+  constructor(dictionarySync=null, localStorage=null, scheduler=null) {
+    this.dictionarySync = dictionarySync || new DictionarySync();
+    this.switchToLanguage = new Subject();
+    this.currentSpellchecker = null;
+    this.currentSpellcheckerLanguage = null;
+    this.currentSpellcheckerChanged = new Subject();
+    this.spellCheckInvoked = new Subject();
+    this.spellingErrorOccurred = new Subject();
+
+    this.scheduler = scheduler || Scheduler.default;
+    this.shouldAutoCorrect = true;
+
+    // NB: A Cool thing is when window.localStorage is rigged to blow up
+    // if you touch it from a data: URI in Chromium.
+    try {
+      this.localStorage = localStorage || window.localStorage || new FakeLocalStorage();
+    } catch (ugh) {
+      this.localStorage = new FakeLocalStorage();
+    }
+
+    this.disp = new SerialDisposable();
+
+    if (process.platform === &apos;darwin&apos;) {
+      // NB: OS X does automatic language detection, we&apos;re gonna trust it
+      this.currentSpellchecker = new Spellchecker();
+      this.currentSpellcheckerLanguage = &apos;en-US&apos;;
+
+      if (webFrame) {
+        webFrame.setSpellCheckProvider(
+          this.currentSpellcheckerLanguage,
+          this.shouldAutoCorrect,
+          { spellCheck: this.handleElectronSpellCheck.bind(this) });
+      }
+      return;
+    }
+  }
+    
+  /**
+   * Disconnect the events that we connected in {{attachToInput}} or other places
+   * in the class.
+   */  
+  dispose() {
+    this.disp.dispose();
+  }
+
+  /**
+   * Override the default logger for this class. You probably want to use
+   * {{setGlobalLogger}} instead
+   * 
+   * @param {Function} fn   The function which will operate like console.log
+   */  
+  static setLogger(fn) {
+    d = fn;
+  }
+  
+  /**
+   * Attach to document.body and register ourselves for Electron spell checking.
+   * This method will start to watch text entered by the user and automatically
+   * switch languages as well as enable Electron spell checking (i.e. the red
+   * squigglies).
+   * 
+   * @param  {Observable&lt;String&gt;} inputText     Simulate the user typing text,
+   *                                            for testing.
+   *
+   * @return {Disposable}       A Disposable which will unregister all of the 
+   *                            things that this method registered.
+   */
+  attachToInput(inputText=null) {
+    // OS X has no need for any of this
+    if (process.platform === &apos;darwin&apos; &amp;&amp; !inputText) {
+      return Disposable.empty;
+    }
+
+    let possiblySwitchedCharacterSets = new Subject();
+    let wordsTyped = 0;
+
+    let input = inputText || (fromEventCapture(document.body, &apos;input&apos;)
+      .flatMap((e) =&gt; {
+        if (!e.target || !e.target.value) return Observable.empty();
+        if (e.target.value.match(/\S\s$/)) {
+          wordsTyped++;
+        }
+
+        if (wordsTyped &gt; 2) {
+          d(`${wordsTyped} words typed without spell checking invoked, redetecting language`);
+          possiblySwitchedCharacterSets.onNext(true);
+        }
+
+        return Observable.just(e.target.value);
+      }));
+
+    let disp = new CompositeDisposable();
+
+    // NB: When users switch character sets (i.e. we&apos;re checking in English and
+    // the user suddenly starts typing in Russian), the spellchecker will no
+    // longer invoke us, so we don&apos;t have a chance to re-detect the language.
+    //
+    // If we see too many words typed without a spelling detection, we know we
+    // should start rechecking the input box for a language change.
+    disp.add(Observable.merge(this.spellCheckInvoked, this.currentSpellcheckerChanged)
+      .subscribe(() =&gt; wordsTyped = 0));
+
+
+    let lastInputText = &apos;&apos;;
+    disp.add(input.subscribe((x) =&gt; lastInputText = x));
+
+    let initialInputText = input
+      .guaranteedThrottle(250, this.scheduler)
+      .takeUntil(this.currentSpellcheckerChanged);
+
+    if (this.currentSpellcheckerLanguage) {
+      initialInputText = Observable.empty();
+    }
+
+    let contentToCheck = Observable.merge(
+        this.spellingErrorOccurred,
+        initialInputText,
+        possiblySwitchedCharacterSets)
+      .observeOn(this.scheduler)
+      .flatMap(() =&gt; {
+        if (lastInputText.length &lt; 8) return Observable.empty();
+        return Observable.just(lastInputText);
+      });
+
+    let languageDetectionMatches = contentToCheck
+      .flatMap((text) =&gt; {
+        d(`Attempting detection of ${text}`);
+        return Observable.fromPromise(this.detectLanguageForText(text))
+          .catch(() =&gt; Observable.empty());
+      });
+
+    disp.add(languageDetectionMatches
+      .flatMap(async (langWithoutLocale) =&gt; {
+        d(`Auto-detected language as ${langWithoutLocale}`);
+        let lang = await this.getLikelyLocaleForLanguage(langWithoutLocale);
+        if (lang !== this.currentSpellcheckerLanguage) await this.switchLanguage(lang);
+
+        return lang;
+      })
+      .catch((e) =&gt; {
+        d(`Failed to load dictionary: ${e.message}`);
+        return Observable.empty();
+      })
+      .subscribe(async (lang) =&gt; {
+        d(`New Language is ${lang}`);
+      }));
+
+    if (webFrame) {
+      disp.add(this.currentSpellcheckerChanged
+          .startWith(true)
+          .observeOn(this.scheduler)
+        .where(() =&gt; this.currentSpellchecker)
+        .subscribe(() =&gt; {
+          d(&apos;Actually installing spell check provider to Electron&apos;);
+
+          webFrame.setSpellCheckProvider(
+            this.currentSpellcheckerLanguage,
+            this.shouldAutoCorrect,
+            { spellCheck: this.handleElectronSpellCheck.bind(this) });
+        }));
+    }
+
+    this.disp.setDisposable(disp);
+    return disp;
+  }
+  
+  /**
+   * autoUnloadDictionariesOnBlur attempts to save memory by unloading 
+   * dictionaries when the window loses focus.
+   * 
+   * @return {Disposable}   A {{Disposable}} that will unhook the events listened
+   *                        to by this method.
+   */
+  autoUnloadDictionariesOnBlur() {
+    let ret = new CompositeDisposable();
+    let hasUnloaded = false;
+
+    if (process.platform === &apos;darwin&apos;) return Disposable.empty;
+
+    ret.add(Observable.fromEvent(window, &apos;blur&apos;).subscribe(() =&gt; {
+      d(`Unloading spellchecker`);
+      this.currentSpellchecker = null;
+      hasUnloaded = true;
+    }));
+
+    ret.add(Observable.fromEvent(window, &apos;focus&apos;).flatMap(() =&gt; {
+      if (!hasUnloaded) return Observable.empty();
+      if (!this.currentSpellcheckerLanguage) return Observable.empty();
+
+      d(`Restoring spellchecker`);
+      return Observable.fromPromise(this.switchLanguage(this.currentSpellcheckerLanguage))
+        .catch((e) =&gt; {
+          d(`Failed to restore spellchecker: ${e.message}`);
+          return Observable.empty();
+        });
+    }).subscribe());
+
+    return ret;
+  }
+  
+  /**
+   * Switch the dictionary language to the language of the sample text provided.
+   * As described in the class documentation, call this method with text most 
+   * likely in the same language as the user is typing. The locale (i.e. *US* vs
+   * *UK* vs *AU*) will be inferred heuristically based on the user&apos;s computer.
+   * 
+   * @param  {String} inputText   A language code (i.e. &apos;en-US&apos;)
+   * 
+   * @return {Promise}            Completion
+   */
+  async provideHintText(inputText) {
+    let langWithoutLocale = null;
+    try {
+      langWithoutLocale = await this.detectLanguageForText(inputText);
+    } catch (e) {
+      d(`Couldn&apos;t detect language for text &apos;${inputText}&apos;: ${e.message}, ignoring sample`);
+      return;
+    }
+
+    let lang = await this.getLikelyLocaleForLanguage(langWithoutLocale);
+    await this.switchLanguage(lang);
+  }
+
+  /**
+   * Explicitly switch the language to a specific language. This method will 
+   * automatically download the dictionary for the specific language and locale
+   * and on failure, will attempt to switch to dictionaries that are the same
+   * language but a default locale.
+   * 
+   * @param  {String} langCode    A language code (i.e. &apos;en-US&apos;)
+   * 
+   * @return {Promise}            Completion
+   */
+  async switchLanguage(langCode) {
+    let actualLang;
+    let dict = null;
+
+    try {
+      let {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
+      actualLang = language;  dict = dictionary;
+    } catch (e) {
+      d(`Failed to load dictionary ${langCode}: ${e.message}`);
+      throw e;
+    }
+
+    d(`Setting current spellchecker to ${actualLang}, requested language was ${langCode}`);
+    if (this.currentSpellcheckerLanguage !== actualLang || !this.currentSpellchecker) {
+      d(`Creating node-spellchecker instance`);
+      this.currentSpellchecker = new Spellchecker();
+      this.currentSpellchecker.setDictionary(actualLang, dict);
+      this.currentSpellcheckerLanguage = actualLang;
+      this.currentSpellcheckerChanged.onNext(true);
+    }
+  }
+
+  /**
+   * Loads a dictionary and attempts to use fallbacks if it fails.
+   * @private
+   */
+  async loadDictionaryForLanguageWithAlternatives(langCode, cacheOnly=false) {
+    const localStorageKey =  &apos;electronSpellchecker_alternatesTable&apos;;
+
+    this.fallbackLocaleTable = this.fallbackLocaleTable || require(&apos;./fallback-locales&apos;);
+    let lang = langCode.substring(0, 2);
+
+    let alternatives = [langCode, await this.getLikelyLocaleForLanguage(lang), this.fallbackLocaleTable[lang]];
+    let alternatesTable = JSON.parse(this.localStorage.getItem(localStorageKey) || &apos;{}&apos;);
+
+    if (langCode in alternatesTable) {
+      try {
+        return {
+          language: alternatesTable[langCode],
+          dictionary: await this.dictionarySync.loadDictionaryForLanguage(alternatesTable[langCode])
+        };
+      } catch (e) {
+        // If we fail to load a saved alternate, this is an indicator that our
+        // data is garbage and we should throw it out entirely.
+        this.localStorage.setItem(localStorageKey, &apos;{}&apos;);
+      }
+    }
+
+    d(`Requesting to load ${langCode}, alternatives are ${JSON.stringify(alternatives)}`);
+    return await Observable.of(...alternatives)
+      .concatMap((l) =&gt; {
+        return Observable.defer(() =&gt;
+            Observable.fromPromise(this.dictionarySync.loadDictionaryForLanguage(l, cacheOnly)))
+          .map((d) =&gt; ({language: l, dictionary: d}))
+          .do(({language}) =&gt; {
+            alternatesTable[langCode] = language;
+            this.localStorage.setItem(localStorageKey, JSON.stringify(alternatesTable));
+          })
+          .catch(() =&gt; Observable.just(null));
+      })
+      .filter((x) =&gt; x !== null)
+      .take(1)
+      .toPromise();
+  }
+
+  /**
+   *  The actual callout called by Electron to handle spellchecking
+   *  @private
+   */
+  handleElectronSpellCheck(text) {
+    if (!this.currentSpellchecker) return true;
+    this.spellCheckInvoked.onNext(true);
+
+    if (contractionMap[text.toLocaleLowerCase()]) return true;
+
+    // NB: I&apos;m not smart enough to fix this bug in Chromium&apos;s version of
+    // Hunspell so I&apos;m going to fix it here instead. Chromium Hunspell for
+    // whatever reason marks the first word in a sentence as mispelled if it is
+    // capitalized.
+    let result = this.currentSpellchecker.checkSpelling(text);
+    if (result.length &lt; 1) return true;
+    if (result[0].start !== 0) {
+      this.spellingErrorOccurred.onNext(text);
+      return false;
+    }
+
+    let ret = this.currentSpellchecker.isMisspelled(text.toLocaleLowerCase());
+    if (ret) {
+      this.spellingErrorOccurred.onNext(text);
+    }
+
+    return !ret;
+  }
+
+  /**
+   * Calls out to cld2 to detect the language of the given text
+   * @private
+   */
+  detectLanguageForText(text) {
+    // NB: Unfortuantely cld marshals errors incorrectly, so we can&apos;t use pify
+    cld = cld || require(&apos;cld&apos;);
+
+    return new Promise((res,rej) =&gt; {
+      cld.detect(text, (err, result) =&gt; {
+        if (err) { rej(new Error(err.message)); return; }
+        if (!result.reliable || result.languages[0].percent &lt; 85) {
+          rej(new Error(&apos;Not enough reliable text&apos;));
+          return;
+        }
+
+        res(result.languages[0].code);
+      });
+    });
+  }
+
+  /**
+   * Returns the locale for a language code based on the user&apos;s machine (i.e. 
+   * &apos;en&apos; =&gt; &apos;en-GB&apos;)
+   */
+  async getLikelyLocaleForLanguage(language) {
+    let lang = language.toLowerCase();
+    if (!this.likelyLocaleTable) this.likelyLocaleTable = await this.buildLikelyLocaleTable();
+
+    if (this.likelyLocaleTable[lang]) return this.likelyLocaleTable[lang];
+    this.fallbackLocaleTable = this.fallbackLocaleTable || require(&apos;./fallback-locales&apos;);
+
+    return this.fallbackLocaleTable[lang];
+  }
+
+  /**
+   * A proxy for the current spellchecker&apos;s method of the same name
+   * @private
+   */
+  async getCorrectionsForMisspelling(text) {
+    // NB: This is async even though we don&apos;t use await, to make it easy for
+    // ContextMenuBuilder to use this method even when it&apos;s hosted in another
+    // renderer process via electron-remote.
+    if (!this.currentSpellchecker) {
+      return null;
+    }
+
+    return this.currentSpellchecker.getCorrectionsForMisspelling(text);
+  }
+
+  /**
+   * A proxy for the current spellchecker&apos;s method of the same name
+   * @private
+   */
+  async addToDictionary(text) {
+    // NB: Same deal as getCorrectionsForMisspelling.
+    if (process.platform !== &apos;darwin&apos;) return;
+    if (!this.currentSpellchecker) return;
+
+    this.currentSpellchecker.add(text);
+  }
+
+  /**
+   * Call out to the OS to figure out what locales the user is probably 
+   * interested in then save it off as a table.
+   * @private
+   */
+  async buildLikelyLocaleTable() {
+    let localeList = [];
+
+    if (process.platform === &apos;linux&apos;) {
+      let locales = await spawn(&apos;locale&apos;, [&apos;-a&apos;])
+        .catch(() =&gt; Observable.just(null))
+        .reduce((acc,x) =&gt; { acc.push(...x.split(&apos;\n&apos;)); return acc; }, [])
+        .toPromise();
+
+      d(`Raw Locale list: ${JSON.stringify(locales)}`);
+
+      localeList = locales.reduce((acc, x) =&gt; {
+        let m = x.match(validLangCodeWindowsLinux);
+        if (!m) return acc;
+
+        acc.push(m[0]);
+        return acc;
+      }, []);
+    }
+
+    if (process.platform === &apos;win32&apos;) {
+      localeList = getInstalledKeyboardLanguages();
+    }
+
+    if (process.platform === &apos;darwin&apos;) {
+      fallbackLocaleTable = fallbackLocaleTable || require(&apos;./fallback-locales&apos;);
+
+      // NB: OS X will return lists that are half just a language, half
+      // language + locale, like [&apos;en&apos;, &apos;pt_BR&apos;, &apos;ko&apos;]
+      localeList = this.currentSpellchecker.getAvailableDictionaries()
+        .map((x =&gt; {
+          if (x.length === 2) return fallbackLocaleTable[x];
+          return normalizeLanguageCode(x);
+        }));
+    }
+
+    d(`Filtered Locale list: ${JSON.stringify(localeList)}`);
+
+    // Some distros like Ubuntu make locale -a useless by dumping
+    // every possible locale for the language into the list :-/
+    let counts = localeList.reduce((acc,x) =&gt; {
+      let k = x.substring(0,2);
+      acc[k] = acc[k] || [];
+      acc[k].push(x);
+
+      return acc;
+    }, {});
+
+    d(`Counts: ${JSON.stringify(counts)}`);
+
+    let ret = Object.keys(counts).reduce((acc, x) =&gt; {
+      if (counts[x].length &gt; 1) return acc;
+
+      d(`Setting ${x}`);
+      acc[x] = normalizeLanguageCode(counts[x][0]);
+
+      return acc;
+    }, {});
+
+    // NB: LANG has a Special Place In Our Hearts
+    if (process.platform === &apos;linux&apos; &amp;&amp; process.env.LANG) {
+      let m = process.env.LANG.match(validLangCodeWindowsLinux);
+      if (!m) return ret;
+
+      ret[m[0].substring(0, 2)] = normalizeLanguageCode(m[0]);
+    }
+
+    d(`Result: ${JSON.stringify(ret)}`);
+    return ret;
+  }
+}
+</code></pre>
+
+</div>
+
+<footer class="footer">
+  Generated by <a href="https://esdoc.org">ESDoc<span data-ice="esdocVersion">(0.4.7)</span></a>
+</footer>
+
+<script src="script/search_index.js"></script>
+<script src="script/search.js"></script>
+<script src="script/pretty-print.js"></script>
+<script src="script/inherited-summary.js"></script>
+<script src="script/test-summary.js"></script>
+<script src="script/inner-link.js"></script>
+<script src="script/patch-for-local.js"></script>
+</body>
+</html>
