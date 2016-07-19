@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>Electron-spellchecker by paulcbetts</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">Electron-spellchecker</h1>
+      <h2 class="project-tagline">Implement spellchecking, correctly</h2>
+      <a href="https://github.com/paulcbetts/electron-spellchecker" class="btn">View on GitHub</a>
+      <a href="https://github.com/paulcbetts/electron-spellchecker/zipball/master" class="btn">Download .zip</a>
+      <a href="https://github.com/paulcbetts/electron-spellchecker/tarball/master" class="btn">Download .tar.gz</a>
+    </section>
+
+    <section class="main-content">
+      <h1>
+<a id="electron-spellchecker" class="anchor" href="#electron-spellchecker" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>electron-spellchecker</h1>
+
+<p><img src="https://img.shields.io/npm/dm/electron-spellchecker.svg" alt=""> <a href="http://paulcbetts.github.io/electron-spellchecker/docs"><img src="http://paulcbetts.github.io/electron-spellchecker/docs/badge.svg" alt=""></a></p>
+
+<p>electron-spellchecker is a library to help you implement spellchecking in your Electron applications, as well as handle default right-click Context Menus (since spell checking shows up in them).  This library intends to solve the problem of spellchecking in a production-ready, international-friendly way.</p>
+
+<p>electron-spellchecker:</p>
+
+<ul>
+<li>Spell checks in all of the languages that Google Chrome supports by reusing its dictionaries.</li>
+<li>Automatically detects the language the user is typing in and silently switches on the fly.</li>
+<li>Handles locale correctly and automatically (i.e. users who are from Australia should not be corrected for 'colour', but US English speakers should)</li>
+<li>Automatically downloads and manages dictionaries in the background. </li>
+</ul>
+
+<h2>
+<a id="quick-start" class="anchor" href="#quick-start" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Quick Start</h2>
+
+<div class="highlight highlight-source-js"><pre><span class="pl-k">import</span> {<span class="pl-smi">SpellCheckHandler</span>, <span class="pl-smi">ContextMenuListener</span>, <span class="pl-smi">ContextMenuBuilder</span>} <span class="pl-k">from</span> <span class="pl-s"><span class="pl-pds">'</span>electron-spellchecker<span class="pl-pds">'</span></span>;
+
+<span class="pl-c1">window</span>.<span class="pl-smi">spellCheckHandler</span> <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-en">SpellCheckHandler</span>();
+<span class="pl-c1">window</span>.<span class="pl-smi">spellCheckHandler</span>.<span class="pl-en">attachToInput</span>();
+
+<span class="pl-c">// Start off as US English, America #1 (lol)</span>
+<span class="pl-c1">window</span>.<span class="pl-smi">spellCheckHandler</span>.<span class="pl-en">switchLanguage</span>(<span class="pl-s"><span class="pl-pds">'</span>en-US<span class="pl-pds">'</span></span>);
+
+<span class="pl-k">let</span> contextMenuBuilder <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-en">ContextMenuBuilder</span>(<span class="pl-c1">window</span>.<span class="pl-smi">spellCheckHandler</span>);
+<span class="pl-k">let</span> contextMenuListener <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-en">ContextMenuListener</span>((<span class="pl-smi">info</span>) <span class="pl-k">=&gt;</span> {
+  <span class="pl-smi">contextMenuBuilder</span>.<span class="pl-en">showPopupMenu</span>(info);
+});</pre></div>
+
+<h2>
+<a id="language-auto-detection" class="anchor" href="#language-auto-detection" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Language Auto-Detection</h2>
+
+<p>The spell checker will attempt to automatically check the language that the user is typing in and switch on-the fly. However, giving it an explicit hint by calling <code>switchLanguage</code>, or providing it a block of sample text via <code>provideHintText</code> will result in much better results.</p>
+
+<p>Sample text should be text that is reasonably likely to be in the same language as the user typing - for example, in an Email reply box, the original Email text would be a great sample, or in the case of Slack, the existing channel messages are used as the sample text.</p>
+
+<h2>
+<a id="learning-more" class="anchor" href="#learning-more" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Learning more</h2>
+
+<ul>
+<li>Run <code>npm start</code> to start <a href="https://github.com/paulcbetts/electron-spellchecker/tree/master/example">the example application</a> and play around.</li>
+<li>Read <a href="https://github.com/paulcbetts/electron-spellchecker/tree/master/example">the class documentation</a> to learn more.</li>
+</ul>
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/paulcbetts/electron-spellchecker">Electron-spellchecker</a> is maintained by <a href="https://github.com/paulcbetts">paulcbetts</a>.</span>
+
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+  
+  </body>
+</html>
