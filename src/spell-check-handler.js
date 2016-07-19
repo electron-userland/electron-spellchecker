@@ -269,8 +269,6 @@ export default class SpellCheckHandler {
 
     if (contractionMap[text.toLocaleLowerCase()]) return true;
 
-    d(`Checking spelling of ${text}`);
-
     // NB: I'm not smart enough to fix this bug in Chromium's version of
     // Hunspell so I'm going to fix it here instead. Chromium Hunspell for
     // whatever reason marks the first word in a sentence as mispelled if it is
