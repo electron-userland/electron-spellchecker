@@ -316,7 +316,7 @@ export default class SpellCheckHandler {
    * and on failure, will attempt to switch to dictionaries that are the same
    * language but a default locale.
    * 
-   * @param  {String} inputText   A language code (i.e. 'en-US')
+   * @param  {String} langCode    A language code (i.e. 'en-US')
    * 
    * @return {Promise}            Completion
    */
