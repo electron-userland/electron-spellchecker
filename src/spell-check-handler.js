@@ -75,6 +75,18 @@ function fromEventCapture(element, name) {
  * are used as the sample text.
  */
 export default class SpellCheckHandler {
+  /**
+   * Constructs a SpellCheckHandler
+   * 
+   * @param  {DictionarySync} dictionarySync  An instance of {{DictionarySync}},
+   *                                          create a custom one if you want
+   *                                          to override the dictionary cache
+   *                                          location.
+   * @param  {LocalStorage} localStorage      An implementation of localStorage
+   *                                          used for testing.
+   * @param  {Scheduler} scheduler            The Rx scheduler to use, for 
+   *                                          testing.
+   */
   constructor(dictionarySync=null, localStorage=null, scheduler=null) {
     this.dictionarySync = dictionarySync || new DictionarySync();
     this.switchToLanguage = new Subject();
