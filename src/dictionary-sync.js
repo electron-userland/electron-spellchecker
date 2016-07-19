@@ -74,6 +74,8 @@ export default class DictionarySync {
         if (ret.length < 64*1024) {
           throw new Error("File exists but is most likely bogus");
         }
+
+	return ret;
       }
     } catch (e) {
       d(`Failed to read file ${target}: ${e.message}`);
