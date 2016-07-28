@@ -357,7 +357,7 @@ export default class ContextMenuBuilder {
     let target = this.getWebContents();
     if (!target) return menu;
 
-    if (!this.devMode) return menu;
+    if (!this.debugMode) return menu;
     if (needsSeparator) this.addSeparator(menu);
 
     let inspect = new MenuItem({
