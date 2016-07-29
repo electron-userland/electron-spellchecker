@@ -71,7 +71,7 @@ export default class DictionarySync {
         d(`Returning local copy: ${target}`);
         let ret = await fs.readFile(target, {});
       
-        if (ret.length < 64*1024) {
+        if (ret.length < 8*1024) {
           throw new Error("File exists but is most likely bogus");
         }
 
@@ -97,7 +97,7 @@ export default class DictionarySync {
     if (cacheOnly) return target;
 
     let ret = await fs.readFile(target, {});
-    if (ret.length < 64*1024) {
+    if (ret.length < 8*1024) {
       throw new Error("File exists but is most likely bogus");
     }
 
