@@ -397,14 +397,10 @@ export default class ContextMenuBuilder {
 
   getWebContents() {
     let windowOrWebView = this.windowOrWebView;
-    if ('webContents' in windowOrWebView) {
-      if (windowOrWebView.webContents.isCrashed()) return null;
-      if (windowOrWebView.webContents.isDestroyed()) return null;
-      return windowOrWebView.webContents;
-    }
+    let target = 'webContents' in windowOrWebView ?
+      windowOrWebView.webContents : windowOrWebView;
 
-    if (target.isCrashed()) return null;
-    if (target.getWebContents().isDestroyed()) return null;
+    if (target.isCrashed() || target.isDestroyed()) return null;
     return target;
   }
 }
