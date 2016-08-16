@@ -1,4 +1,5 @@
 import {clipboard, nativeImage, remote, shell} from 'electron';
+import {truncateString} from './utility';
 
 const {Menu, MenuItem} = remote;
 
@@ -6,7 +7,7 @@ let d = require('debug-electron')('electron-spellchecker:context-menu-builder');
 
 /**
  * ContextMenuBuilder creates context menus based on the content clicked - this
- * information is derived from 
+ * information is derived from
  * https://github.com/electron/electron/blob/master/docs/api/web-contents.md#event-context-menu,
  * which we use to generate the menu. We also use the spell-check information to
  * generate suggestions.
@@ -14,7 +15,7 @@ let d = require('debug-electron')('electron-spellchecker:context-menu-builder');
 export default class ContextMenuBuilder {
   /**
    * Creates an instance of ContextMenuBuilder
-   * 
+   *
    * @param  {SpellCheckHandler} spellCheckHandler  The spell checker to generate
    *                                                recommendations for.
    * @param  {BrowserWindow|WebView} windowOrWebView  The hosting window/WebView
@@ -30,7 +31,7 @@ export default class ContextMenuBuilder {
   /**
    * Override the default logger for this class. You probably want to use
    * {{setGlobalLogger}} instead
-   * 
+   *
    * @param {Function} fn   The function which will operate like console.log
    */
   static setLogger(fn) {
@@ -38,12 +39,12 @@ export default class ContextMenuBuilder {
   }
 
   /**
-   * Shows a popup menu given the information returned from the context-menu 
+   * Shows a popup menu given the information returned from the context-menu
    * event. This is probably the only method you need to call in this class.
-   * 
+   *
    * @param  {Object} contextInfo   The object returned from the 'context-menu'
    *                                Electron event.
-   *                                
+   *
    * @return {Promise}              Completion
    */
   async showPopupMenu(contextInfo) {
@@ -56,7 +57,7 @@ export default class ContextMenuBuilder {
   }
 
   /**
-   * Builds a context menu specific to the given info that _would_ be shown 
+   * Builds a context menu specific to the given info that _would_ be shown
    * immediately by {{showPopupMenu}}. Use this to add your own menu items to
    * the list but use most of the default behavior.
    *
@@ -240,7 +241,7 @@ export default class ContextMenuBuilder {
         this.windowOrWebView.webContents : this.windowOrWebView;
 
       let lookUpDefinition = new MenuItem({
-        label: `Look Up “${menuInfo.selectionText}”`,
+        label: `Look Up “${truncateString(menuInfo.selectionText)}”`,
         click: () => target.showDefinitionForSelection()
       });
 
