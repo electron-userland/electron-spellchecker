@@ -420,7 +420,7 @@ export default class SpellCheckHandler {
    */
   detectLanguageForText(text) {
     // NB: Unfortuantely cld marshals errors incorrectly, so we can't use pify
-    cld = cld || require('cld');
+    cld = cld || require('@paulcbetts/cld');
 
     return new Promise((res,rej) => {
       cld.detect(text, (err, result) => {
