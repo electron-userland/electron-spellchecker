@@ -213,7 +213,7 @@ export default class SpellCheckHandler {
 
     let languageDetectionMatches = contentToCheck
       .flatMap((text) => {
-        d(`Attempting detection of ${text}`);
+        d(`Attempting detection, string length: ${text.length}`);
         return Observable.fromPromise(this.detectLanguageForText(text))
           .catch(() => Observable.empty());
       });
