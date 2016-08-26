@@ -302,7 +302,7 @@ export default class SpellCheckHandler {
     try {
       langWithoutLocale = await this.detectLanguageForText(inputText);
     } catch (e) {
-      d(`Couldn't detect language for text '${inputText}': ${e.message}, ignoring sample`);
+      d(`Couldn't detect language for text of length '${inputText.length}': ${e.message}, ignoring sample`);
       return;
     }
 
