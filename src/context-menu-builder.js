@@ -64,7 +64,7 @@ export default class ContextMenuBuilder {
    * @return {Promise<Menu>}      The newly created `Menu`
    */
   async buildMenuForElement(info) {
-    d(`Got context menu event with args: ${JSON.stringify(info)}`);
+    //d(`Got context menu event with args: ${JSON.stringify(info)}`);
 
     if (info.linkURL && info.linkURL.length > 0) {
       return this.buildMenuForLink(info);
@@ -121,7 +121,7 @@ export default class ContextMenuBuilder {
     let openLink = new MenuItem({
       label: 'Open Link',
       click: () => {
-        d(`Navigating to: ${menuInfo.linkURL}`);
+        //d(`Navigating to: ${menuInfo.linkURL}`);
         shell.openExternal(menuInfo.linkURL);
       }
     });
@@ -253,7 +253,7 @@ export default class ContextMenuBuilder {
       click: () => {
         let url = `https://www.google.com/#q=${encodeURIComponent(menuInfo.selectionText)}`;
 
-        d(`Searching Google using ${url}`);
+        //d(`Searching Google using ${url}`);
         shell.openExternal(url);
       }
     });
