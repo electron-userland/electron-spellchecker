@@ -1,3 +1,4 @@
+import os from 'os';
 
 /**
  * Normalizes language codes by case and separator. Unfortunately, different
@@ -32,4 +33,29 @@ export function truncateString(string) {
   let result = match[0].replace(/\s$/,'');
   if (length < string.length) result += "…";
   return result;
+}
+
+/**
+ * Returns true if we are using Hunspell and false if we are using system
+ * dictionaries.
+ *
+ * @return {Bool}   False if using the system dictionary
+ */
+export function shouldUseHunspell() {
+  if (process.platform === 'linux') return true;
+
+  if (process.platform === 'darwin') return false;
+
+  // For testing: used to ignore Win8 spellchecker even if it's available.
+  if (process.env.SPELLCHECKER_PREFER_HUNSPELL) return true;
+
+  let [major, minor] = os.release().split('.').map((part) => parseInt(part));
+
+  // Win10 or greater?
+  if (major > 6) return false;
+
+  // Win8 or greater? We use system dictionary API
+  if (major === 6 && minor >= 2) return false;
+
+  return true;
 }
