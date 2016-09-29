@@ -31,7 +31,6 @@
   "dependencies": {
     "@paulcbetts/cld": "^2.4.6",
     "@paulcbetts/spellchecker": "^4.0.3",
-    "babel-runtime": "^6.11.6",
     "debug-electron": "^0.0.1",
     "electron-remote": "^0.6.2",
     "keyboard-layout": "^1.2.2",
