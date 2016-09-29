@@ -5,19 +5,19 @@ import {Subscription} from 'rxjs/Subscription';
 import {Observable} from 'rxjs/Observable';
 import {Scheduler} from 'rxjs/Scheduler';
 import {Subject} from 'rxjs/Subject';
-import {SerialSubscription} from './serial-subscription';
+import {asap} from 'rxjs/scheduler/asap';
+import SerialSubscription from './serial-subscription';
 
-import 'rxjs/add/observable/create';
+import 'rxjs/add/observable/defer';
 import 'rxjs/add/observable/empty';
 import 'rxjs/add/observable/fromEvent';
 import 'rxjs/add/observable/fromPromise';
 import 'rxjs/add/observable/of';
 
 import 'rxjs/add/operator/catch';
-import 'rxjs/add/operator/defer';
 import 'rxjs/add/operator/do';
 import 'rxjs/add/operator/filter';
-import 'rxjs/add/operator/flatMap';
+import 'rxjs/add/operator/mergeMap';
 import 'rxjs/add/operator/merge';
 import 'rxjs/add/operator/observeOn';
 import 'rxjs/add/operator/reduce';
@@ -121,7 +121,7 @@ export default class SpellCheckHandler {
     this.spellCheckInvoked = new Subject();
     this.spellingErrorOccurred = new Subject();
 
-    this.scheduler = scheduler || Scheduler.default;
+    this.scheduler = scheduler || asap;
     this.shouldAutoCorrect = true;
 
     // NB: A Cool thing is when window.localStorage is rigged to blow up
@@ -189,7 +189,7 @@ export default class SpellCheckHandler {
     let wordsTyped = 0;
 
     let input = inputText || (fromEventCapture(document.body, 'input')
-      .flatMap((e) => {
+      .mergeMap((e) => {
         if (!e.target || !e.target.value) return Observable.empty();
         if (e.target.value.match(/\S\s$/)) {
           wordsTyped++;
@@ -230,20 +230,20 @@ export default class SpellCheckHandler {
         initialInputText,
         possiblySwitchedCharacterSets)
       .observeOn(this.scheduler)
-      .flatMap(() => {
+      .mergeMap(() => {
         if (lastInputText.length < 8) return Observable.empty();
         return Observable.of(lastInputText);
       });
 
     let languageDetectionMatches = contentToCheck
-      .flatMap((text) => {
+      .mergeMap((text) => {
         d(`Attempting detection, string length: ${text.length}`);
         return Observable.fromPromise(this.detectLanguageForText(text))
           .catch(() => Observable.empty());
       });
 
     disp.add(languageDetectionMatches
-      .flatMap(async (langWithoutLocale) => {
+      .mergeMap(async (langWithoutLocale) => {
         d(`Auto-detected language as ${langWithoutLocale}`);
         let lang = await this.getLikelyLocaleForLanguage(langWithoutLocale);
         if (lang !== this.currentSpellcheckerLanguage) await this.switchLanguage(lang);
@@ -273,7 +273,7 @@ export default class SpellCheckHandler {
         }));
     }
 
-    this.disp.setSubscription(disp);
+    this.disp.set(disp);
     return disp;
   }
 
@@ -296,7 +296,7 @@ export default class SpellCheckHandler {
       hasUnloaded = true;
     }));
 
-    ret.add(Observable.fromEvent(window, 'focus').flatMap(() => {
+    ret.add(Observable.fromEvent(window, 'focus').mergeMap(() => {
       if (!hasUnloaded) return Observable.empty();
       if (!this.currentSpellcheckerLanguage) return Observable.empty();
 
