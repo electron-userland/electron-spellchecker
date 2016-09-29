@@ -1,8 +1,33 @@
-import {CompositeDisposable, Disposable, Observable, Scheduler, SerialDisposable, Subject} from 'rx';
 import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 import {spawn} from 'spawn-rx';
 
+import {Subscription} from 'rxjs/Subscription';
+import {Observable} from 'rxjs/Observable';
+import {Scheduler} from 'rxjs/Scheduler';
+import {Subject} from 'rxjs/Subject';
+import {SerialSubscription} from './serial-subscription';
+
+import 'rxjs/add/observable/create';
+import 'rxjs/add/observable/empty';
+import 'rxjs/add/observable/fromEvent';
+import 'rxjs/add/observable/fromPromise';
+import 'rxjs/add/observable/of';
+
+import 'rxjs/add/operator/catch';
+import 'rxjs/add/operator/defer';
+import 'rxjs/add/operator/do';
+import 'rxjs/add/operator/filter';
+import 'rxjs/add/operator/flatMap';
+import 'rxjs/add/operator/merge';
+import 'rxjs/add/operator/observeOn';
+import 'rxjs/add/operator/reduce';
+import 'rxjs/add/operator/startWith';
+import 'rxjs/add/operator/take';
+import 'rxjs/add/operator/takeUntil';
+import 'rxjs/add/operator/toPromise';
+
 import './custom-operators';
+
 import DictionarySync from './dictionary-sync';
 import {normalizeLanguageCode} from './utility';
 import FakeLocalStorage from './fake-local-storage';
@@ -48,14 +73,14 @@ function fromEventCapture(element, name) {
   return Observable.create((subj) => {
     const handler = function(...args) {
       if (args.length > 1) {
-        subj.onNext(args);
+        subj.next(args);
       } else {
-        subj.onNext(args[0] || true);
+        subj.next(args[0] || true);
       }
     };
 
     element.addEventListener(name, handler, true);
-    return Disposable.create(() => element.removeEventListener(name, handler, true));
+    return new Subscription(() => element.removeEventListener(name, handler, true));
   });
 }
 
@@ -64,9 +89,9 @@ function fromEventCapture(element, name) {
  * different pieces of spell checking except for the context menu information.
  *
  * Instantiate the class, then call {{attachToInput}} to wire it up. The spell
- * checker will attempt to automatically check the language that the user is 
- * typing in and switch on-the fly. However, giving it an explicit hint by 
- * calling {{switchLanguage}}, or providing it a block of sample text via 
+ * checker will attempt to automatically check the language that the user is
+ * typing in and switch on-the fly. However, giving it an explicit hint by
+ * calling {{switchLanguage}}, or providing it a block of sample text via
  * {{provideHintText}} will result in much better results.
  *
  * Sample text should be text that is reasonably likely to be in the same language
@@ -77,14 +102,14 @@ function fromEventCapture(element, name) {
 export default class SpellCheckHandler {
   /**
    * Constructs a SpellCheckHandler
-   * 
+   *
    * @param  {DictionarySync} dictionarySync  An instance of {{DictionarySync}},
    *                                          create a custom one if you want
    *                                          to override the dictionary cache
    *                                          location.
    * @param  {LocalStorage} localStorage      An implementation of localStorage
    *                                          used for testing.
-   * @param  {Scheduler} scheduler            The Rx scheduler to use, for 
+   * @param  {Scheduler} scheduler            The Rx scheduler to use, for
    *                                          testing.
    */
   constructor(dictionarySync=null, localStorage=null, scheduler=null) {
@@ -107,7 +132,7 @@ export default class SpellCheckHandler {
       this.localStorage = new FakeLocalStorage();
     }
 
-    this.disp = new SerialDisposable();
+    this.disp = new SerialSubscription();
 
     if (process.platform === 'darwin') {
       // NB: OS X does automatic language detection, we're gonna trust it
@@ -123,41 +148,41 @@ export default class SpellCheckHandler {
       return;
     }
   }
-    
+
   /**
    * Disconnect the events that we connected in {{attachToInput}} or other places
    * in the class.
-   */  
-  dispose() {
-    this.disp.dispose();
+   */
+  unsubscribe() {
+    this.disp.unsubscribe();
   }
 
   /**
    * Override the default logger for this class. You probably want to use
    * {{setGlobalLogger}} instead
-   * 
+   *
    * @param {Function} fn   The function which will operate like console.log
-   */  
+   */
   static setLogger(fn) {
     d = fn;
   }
-  
+
   /**
    * Attach to document.body and register ourselves for Electron spell checking.
    * This method will start to watch text entered by the user and automatically
    * switch languages as well as enable Electron spell checking (i.e. the red
    * squigglies).
-   * 
+   *
    * @param  {Observable<String>} inputText     Simulate the user typing text,
    *                                            for testing.
    *
-   * @return {Disposable}       A Disposable which will unregister all of the 
+   * @return {Disposable}       A Disposable which will unregister all of the
    *                            things that this method registered.
    */
   attachToInput(inputText=null) {
     // OS X has no need for any of this
     if (process.platform === 'darwin' && !inputText) {
-      return Disposable.empty;
+      return Subscription.EMPTY;
     }
 
     let possiblySwitchedCharacterSets = new Subject();
@@ -172,13 +197,13 @@ export default class SpellCheckHandler {
 
         if (wordsTyped > 2) {
           d(`${wordsTyped} words typed without spell checking invoked, redetecting language`);
-          possiblySwitchedCharacterSets.onNext(true);
+          possiblySwitchedCharacterSets.next(true);
         }
 
-        return Observable.just(e.target.value);
+        return Observable.of(e.target.value);
       }));
 
-    let disp = new CompositeDisposable();
+    let disp = new Subscription();
 
     // NB: When users switch character sets (i.e. we're checking in English and
     // the user suddenly starts typing in Russian), the spellchecker will no
@@ -188,7 +213,6 @@ export default class SpellCheckHandler {
     // should start rechecking the input box for a language change.
     disp.add(Observable.merge(this.spellCheckInvoked, this.currentSpellcheckerChanged)
       .subscribe(() => wordsTyped = 0));
-
 
     let lastInputText = '';
     disp.add(input.subscribe((x) => lastInputText = x));
@@ -208,7 +232,7 @@ export default class SpellCheckHandler {
       .observeOn(this.scheduler)
       .flatMap(() => {
         if (lastInputText.length < 8) return Observable.empty();
-        return Observable.just(lastInputText);
+        return Observable.of(lastInputText);
       });
 
     let languageDetectionMatches = contentToCheck
@@ -238,7 +262,7 @@ export default class SpellCheckHandler {
       disp.add(this.currentSpellcheckerChanged
           .startWith(true)
           .observeOn(this.scheduler)
-        .where(() => this.currentSpellchecker)
+        .filter(() => this.currentSpellchecker)
         .subscribe(() => {
           d('Actually installing spell check provider to Electron');
 
@@ -249,22 +273,22 @@ export default class SpellCheckHandler {
         }));
     }
 
-    this.disp.setDisposable(disp);
+    this.disp.setSubscription(disp);
     return disp;
   }
-  
+
   /**
-   * autoUnloadDictionariesOnBlur attempts to save memory by unloading 
+   * autoUnloadDictionariesOnBlur attempts to save memory by unloading
    * dictionaries when the window loses focus.
-   * 
+   *
    * @return {Disposable}   A {{Disposable}} that will unhook the events listened
    *                        to by this method.
    */
   autoUnloadDictionariesOnBlur() {
-    let ret = new CompositeDisposable();
+    let ret = new Subscription();
     let hasUnloaded = false;
 
-    if (process.platform === 'darwin') return Disposable.empty;
+    if (process.platform === 'darwin') return Subscription.EMPTY;
 
     ret.add(Observable.fromEvent(window, 'blur').subscribe(() => {
       d(`Unloading spellchecker`);
@@ -286,15 +310,15 @@ export default class SpellCheckHandler {
 
     return ret;
   }
-  
+
   /**
    * Switch the dictionary language to the language of the sample text provided.
-   * As described in the class documentation, call this method with text most 
+   * As described in the class documentation, call this method with text most
    * likely in the same language as the user is typing. The locale (i.e. *US* vs
    * *UK* vs *AU*) will be inferred heuristically based on the user's computer.
-   * 
+   *
    * @param  {String} inputText   A language code (i.e. 'en-US')
-   * 
+   *
    * @return {Promise}            Completion
    */
   async provideHintText(inputText) {
@@ -311,13 +335,13 @@ export default class SpellCheckHandler {
   }
 
   /**
-   * Explicitly switch the language to a specific language. This method will 
+   * Explicitly switch the language to a specific language. This method will
    * automatically download the dictionary for the specific language and locale
    * and on failure, will attempt to switch to dictionaries that are the same
    * language but a default locale.
-   * 
+   *
    * @param  {String} langCode    A language code (i.e. 'en-US')
-   * 
+   *
    * @return {Promise}            Completion
    */
   async switchLanguage(langCode) {
@@ -335,10 +359,11 @@ export default class SpellCheckHandler {
     d(`Setting current spellchecker to ${actualLang}, requested language was ${langCode}`);
     if (this.currentSpellcheckerLanguage !== actualLang || !this.currentSpellchecker) {
       d(`Creating node-spellchecker instance`);
+
       this.currentSpellchecker = new Spellchecker();
       this.currentSpellchecker.setDictionary(actualLang, dict);
       this.currentSpellcheckerLanguage = actualLang;
-      this.currentSpellcheckerChanged.onNext(true);
+      this.currentSpellcheckerChanged.next(true);
     }
   }
 
@@ -378,7 +403,7 @@ export default class SpellCheckHandler {
             alternatesTable[langCode] = language;
             this.localStorage.setItem(localStorageKey, JSON.stringify(alternatesTable));
           })
-          .catch(() => Observable.just(null));
+          .catch(() => Observable.of(null));
       })
       .filter((x) => x !== null)
       .take(1)
@@ -391,7 +416,7 @@ export default class SpellCheckHandler {
    */
   handleElectronSpellCheck(text) {
     if (!this.currentSpellchecker) return true;
-    this.spellCheckInvoked.onNext(true);
+    this.spellCheckInvoked.next(true);
 
     if (contractionMap[text.toLocaleLowerCase()]) return true;
 
@@ -402,13 +427,13 @@ export default class SpellCheckHandler {
     let result = this.currentSpellchecker.checkSpelling(text);
     if (result.length < 1) return true;
     if (result[0].start !== 0) {
-      this.spellingErrorOccurred.onNext(text);
+      this.spellingErrorOccurred.next(text);
       return false;
     }
 
     let ret = this.currentSpellchecker.isMisspelled(text.toLocaleLowerCase());
     if (ret) {
-      this.spellingErrorOccurred.onNext(text);
+      this.spellingErrorOccurred.next(text);
     }
 
     return !ret;
@@ -436,7 +461,7 @@ export default class SpellCheckHandler {
   }
 
   /**
-   * Returns the locale for a language code based on the user's machine (i.e. 
+   * Returns the locale for a language code based on the user's machine (i.e.
    * 'en' => 'en-GB')
    */
   async getLikelyLocaleForLanguage(language) {
@@ -477,7 +502,7 @@ export default class SpellCheckHandler {
   }
 
   /**
-   * Call out to the OS to figure out what locales the user is probably 
+   * Call out to the OS to figure out what locales the user is probably
    * interested in then save it off as a table.
    * @private
    */
@@ -486,7 +511,7 @@ export default class SpellCheckHandler {
 
     if (process.platform === 'linux') {
       let locales = await spawn('locale', ['-a'])
-        .catch(() => Observable.just(null))
+        .catch(() => Observable.of(null))
         .reduce((acc,x) => { acc.push(...x.split('\n')); return acc; }, [])
         .toPromise();
 

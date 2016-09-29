@@ -1,10 +1,14 @@
 import {remote} from 'electron';
-import {CompositeDisposable, Observable} from 'rx';
+import { Observable } from 'rxjs/Observable';
+import { Subscription } from 'rxjs/Subscription';
+
+import 'rxjs/add/observable/fromEvent';
+import 'rxjs/add/operator/map';
 
 let d = require('debug-electron')('electron-spellchecker:context-menu-listener');
 
 /**
- * ContextMenuListener will listen to the given window / WebView control and 
+ * ContextMenuListener will listen to the given window / WebView control and
  * invoke a handler function. This function usually will immediately turn around
  * and invoke {{showPopupMenu}} from {{ContextMenuBuilder}}.
  */
@@ -13,7 +17,7 @@ export default class ContextMenuListener {
    * Constructs a ContextMenuListener and wires up the events it needs to fire
    * the callback.
    *
-   * @param  {Function} handler             The callback that will be invoked 
+   * @param  {Function} handler             The callback that will be invoked
    *                                        with the 'context-menu' info.
    * @param  {BrowserWindow|WebView} windowOrWebView  The target, either a
    *                                                  BrowserWindow or a WebView
@@ -21,7 +25,7 @@ export default class ContextMenuListener {
    *                                                ContextMenu event
    */
   constructor(handler, windowOrWebView=null, contextMenuEvent=null) {
-    this.disp = new CompositeDisposable();
+    this.sub= new Subscription();
 
     if (!contextMenuEvent) {
       windowOrWebView = windowOrWebView || remote.getCurrentWebContents();
@@ -33,13 +37,13 @@ export default class ContextMenuListener {
         .map((x) => JSON.parse(JSON.stringify(x)));
     }
 
-    this.disp.add(contextMenuEvent.subscribe(handler));
+    this.sub.add(contextMenuEvent.subscribe(handler));
   }
-    
+
   /**
    * Override the default logger for this class. You probably want to use
    * {{setGlobalLogger}} instead
-   * 
+   *
    * @param {Function} fn   The function which will operate like console.log
    */
   static setLogger(fn) {
@@ -49,7 +53,7 @@ export default class ContextMenuListener {
   /**
    * Disconnect the events that we connected in the Constructor
    */
-  dispose() {
-    this.disp.dispose();
+  unsubscribe() {
+    this.sub.unsubscribe();
   }
 }
