@@ -25,7 +25,7 @@ export default class ContextMenuListener {
    *                                                ContextMenu event
    */
   constructor(handler, windowOrWebView=null, contextMenuEvent=null) {
-    this.sub= new Subscription();
+    this.sub = new Subscription();
 
     if (!contextMenuEvent) {
       windowOrWebView = windowOrWebView || remote.getCurrentWebContents();
