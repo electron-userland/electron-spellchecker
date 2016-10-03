@@ -40,6 +40,7 @@
     "spawn-rx": "^2.0.3"
   },
   "devDependencies": {
+    "@kwonoj/rxjs-testscheduler-compat": "0.0.4",
     "babel-cli": "^6.16.0",
     "babel-eslint": "^7.0.0",
     "babel-plugin-transform-async-to-generator": "^6.16.0",

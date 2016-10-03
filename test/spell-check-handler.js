@@ -2,7 +2,7 @@ import './support';
 
 import path from 'path';
 import rimraf from 'rimraf';
-import {ReactiveTest, TestScheduler} from 'rxjs';
+import {next, TestScheduler} from '@kwonoj/rxjs-testscheduler-compat';
 import FakeLocalStorage from '../src/fake-local-storage';
 
 import DictionarySync from '../src/dictionary-sync';
@@ -89,11 +89,11 @@ describe('The Spell Check Handler Class', function() {
     });
   });
 
-  describe.skip('the attachToInput method', function() {
+  describe('the attachToInput method', function() {
     it('should use TestScheduler correctly', function() {
       let scheduler = new TestScheduler();
       let input = scheduler.createHotObservable(
-        ReactiveTest.onNext(250, 'This is a test of a long english sentence')
+        next(250, 'This is a test of a long english sentence')
       );
 
       let items = [];
@@ -113,7 +113,7 @@ describe('The Spell Check Handler Class', function() {
 
       let scheduler = new TestScheduler();
       let input = scheduler.createHotObservable(
-        ReactiveTest.onNext(250, 'This is a test of a long english sentence')
+        next(250, 'This is a test of a long english sentence')
       );
 
       this.fixture.scheduler = scheduler;
@@ -132,9 +132,9 @@ describe('The Spell Check Handler Class', function() {
 
       let scheduler = new TestScheduler();
       let input = scheduler.createHotObservable(
-        ReactiveTest.onNext(10, 'This is a test of a long english sentence'),
-        ReactiveTest.onNext(15*1000, ''),
-        ReactiveTest.onNext(30*1000, deDE)
+        next(10, 'This is a test of a long english sentence'),
+        next(15*1000, ''),
+        next(30*1000, deDE)
       ).do((x) => d(`Emitted ${x}`)).publish().refCount();
 
       this.fixture.scheduler = scheduler;
@@ -154,8 +154,8 @@ describe('The Spell Check Handler Class', function() {
 
       d('Advancing to +50s, faking up some spelling mistakes');
       scheduler.advanceTo(50*1000);
-      this.fixture.spellingErrorOccurred.onNext('ist');
-      this.fixture.spellingErrorOccurred.onNext('eine');
+      this.fixture.spellingErrorOccurred.next('ist');
+      this.fixture.spellingErrorOccurred.next('eine');
 
       d('Advancing to +60s');
       scheduler.advanceTo(60*1000);
