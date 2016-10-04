@@ -32,7 +32,7 @@
     "@paulcbetts/cld": "^2.4.6",
     "@paulcbetts/spellchecker": "^4.0.3",
     "debug-electron": "^0.0.1",
-    "electron-remote": "^0.6.2",
+    "electron-remote": "^1.0.0",
     "keyboard-layout": "^1.2.2",
     "mkdirp": "^0.5.1",
     "pify": "^2.3.0",
