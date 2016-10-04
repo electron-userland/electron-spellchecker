@@ -1,8 +1,16 @@
 import path from 'path';
 import mkdirp from 'mkdirp';
+
 import {getURLForHunspellDictionary} from './node-spellchecker';
 import {getInstalledKeyboardLanguages} from 'keyboard-layout';
-import {Observable} from 'rxjs';
+
+import {Observable} from 'rxjs/Observable';
+
+import 'rxjs/add/observable/of';
+
+import 'rxjs/add/operator/mergeMap';
+import 'rxjs/add/operator/reduce';
+import 'rxjs/add/operator/toPromise';
 
 import {fs} from './promisify';
 import {normalizeLanguageCode} from './utility';
@@ -23,7 +31,7 @@ const {downloadFileOrUrl} =
 export default class DictionarySync {
   /**
    * Creates a DictionarySync
-   * 
+   *
    * @param  {String} cacheDir    The path to a directory to store dictionaries.
    *                              If not given, the Electron user data directory
    *                              will be used.
@@ -36,24 +44,24 @@ export default class DictionarySync {
   /**
    * Override the default logger for this class. You probably want to use
    * {{setGlobalLogger}} instead
-   * 
+   *
    * @param {Function} fn   The function which will operate like console.log
-   */  
+   */
   static setLogger(fn) {
     d = fn;
   }
 
   /**
-   * Loads the dictionary for a given language code, trying first to load a 
-   * local version, then downloading it. You probably don't want this method 
-   * directly, but the wrapped version 
+   * Loads the dictionary for a given language code, trying first to load a
+   * local version, then downloading it. You probably don't want this method
+   * directly, but the wrapped version
    * {{loadDictionaryForLanguageWithAlternatives}} which is in {{SpellCheckHandler}}.
-   * 
+   *
    * @param  {String} langCode        The language code (i.e. 'en-US')
    * @param  {Boolean} cacheOnly      If true, don't load the file content into
    *                                  memory, only download it
-   * 
-   * @return {Promise<Buffer|String>}     A Buffer of the file contents if 
+   *
+   * @return {Promise<Buffer|String>}     A Buffer of the file contents if
    *                                      {{cacheOnly}} is False, or the path to
    *                                      the file if True.
    */
@@ -68,14 +76,15 @@ export default class DictionarySync {
     try {
       if (fs.existsSync(target)) {
         fileExists = true;
+
         d(`Returning local copy: ${target}`);
         let ret = await fs.readFile(target, {});
-      
+
         if (ret.length < 8*1024) {
           throw new Error("File exists but is most likely bogus");
         }
 
-	return ret;
+        return ret;
       }
     } catch (e) {
       d(`Failed to read file ${target}: ${e.message}`);
@@ -105,19 +114,19 @@ export default class DictionarySync {
   }
 
   /**
-   * Pre-download dictionaries for languages that the user is likely to speak 
+   * Pre-download dictionaries for languages that the user is likely to speak
    * (based usually on their keyboard layouts). Note that this method only works
    * on Windows currently.
-   * 
+   *
    * @param  {Array<String>} languageList     Override the list of languages to
    *                                          download, for testing.
    *
-   * @return {Promise<Array<String>>}         A list of strings to dictionaries 
+   * @return {Promise<Array<String>>}         A list of strings to dictionaries
    *                                          that were downloaded.
    */
   preloadDictionaries(languageList=null) {
-    return Observable.from(languageList || getInstalledKeyboardLanguages())
-      .flatMap((x) => Observable.fromPromise(this.loadDictionaryForLanguage(x, true)))
+    return Observable.of(languageList || getInstalledKeyboardLanguages())
+      .mergeMap((x) => Observable.fromPromise(this.loadDictionaryForLanguage(x, true)))
       .reduce((acc,x) => { acc.push(x); return acc; }, [])
       .toPromise();
   }
