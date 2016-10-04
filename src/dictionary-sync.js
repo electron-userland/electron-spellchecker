@@ -2,7 +2,7 @@ import path from 'path';
 import mkdirp from 'mkdirp';
 import {getURLForHunspellDictionary} from './node-spellchecker';
 import {getInstalledKeyboardLanguages} from 'keyboard-layout';
-import {Observable} from 'rx';
+import {Observable} from 'rxjs';
 
 import {fs} from './promisify';
 import {normalizeLanguageCode} from './utility';
