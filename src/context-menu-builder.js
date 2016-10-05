@@ -129,9 +129,11 @@ export default class ContextMenuBuilder {
     menu.append(copyLink);
     menu.append(openLink);
 
-    this.addSeparator(menu);
+    if (this.isSrcUrlValid(menuInfo)) {
+      this.addSeparator(menu);
+      this.addImageItems(menu, menuInfo);
+    }
 
-    this.addImageItems(menu, menuInfo);
     this.addInspectElement(menu, menuInfo);
 
     return menu;
@@ -160,7 +162,9 @@ export default class ContextMenuBuilder {
   buildMenuForImage(menuInfo) {
     let menu = new Menu();
 
-    this.addImageItems(menu, menuInfo);
+    if (this.isSrcUrlValid(menuInfo)) {
+      this.addImageItems(menu, menuInfo);
+    }
     this.addInspectElement(menu, menuInfo);
     return menu;
   }
@@ -264,14 +268,14 @@ export default class ContextMenuBuilder {
     return menu;
   }
 
+  isSrcUrlValid(menuInfo) {
+    return menuInfo.srcUrl && menuInfo.srcURL.length > 0;
+  }
+
   /**
    * Adds "Copy Image" and "Copy Image URL" items when `src` is valid.
    */
   addImageItems(menu, menuInfo) {
-    if (!menuInfo.srcURL || menuInfo.srcURL.length === 0) {
-      return menu;
-    }
-
     let copyImage = new MenuItem({
       label: 'Copy Image',
       click: () => this.convertImageToBase64(menuInfo.srcURL,
