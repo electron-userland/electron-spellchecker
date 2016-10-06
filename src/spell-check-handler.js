@@ -4,7 +4,6 @@ import {spawn} from 'spawn-rx';
 import {Subscription} from 'rxjs/Subscription';
 import {Observable} from 'rxjs/Observable';
 import {Subject} from 'rxjs/Subject';
-import {asap} from 'rxjs/scheduler/asap';
 import SerialSubscription from 'rxjs-serial-subscription';
 
 import 'rxjs/add/observable/defer';
@@ -14,6 +13,7 @@ import 'rxjs/add/observable/fromPromise';
 import 'rxjs/add/observable/of';
 
 import 'rxjs/add/operator/catch';
+import 'rxjs/add/operator/concatMap';
 import 'rxjs/add/operator/do';
 import 'rxjs/add/operator/filter';
 import 'rxjs/add/operator/mergeMap';
@@ -120,7 +120,7 @@ export default class SpellCheckHandler {
     this.spellCheckInvoked = new Subject();
     this.spellingErrorOccurred = new Subject();
 
-    this.scheduler = scheduler || asap;
+    this.scheduler = scheduler;
     this.shouldAutoCorrect = true;
 
     // NB: A Cool thing is when window.localStorage is rigged to blow up
@@ -228,7 +228,6 @@ export default class SpellCheckHandler {
         this.spellingErrorOccurred,
         initialInputText,
         possiblySwitchedCharacterSets)
-      .observeOn(this.scheduler)
       .mergeMap(() => {
         if (lastInputText.length < 8) return Observable.empty();
         return Observable.of(lastInputText);
@@ -260,7 +259,6 @@ export default class SpellCheckHandler {
     if (webFrame) {
       disp.add(this.currentSpellcheckerChanged
           .startWith(true)
-          .observeOn(this.scheduler)
         .filter(() => this.currentSpellchecker)
         .subscribe(() => {
           d('Actually installing spell check provider to Electron');
