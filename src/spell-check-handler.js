@@ -3,10 +3,9 @@ import {spawn} from 'spawn-rx';
 
 import {Subscription} from 'rxjs/Subscription';
 import {Observable} from 'rxjs/Observable';
-import {Scheduler} from 'rxjs/Scheduler';
 import {Subject} from 'rxjs/Subject';
 import {asap} from 'rxjs/scheduler/asap';
-import SerialSubscription from './serial-subscription';
+import SerialSubscription from 'rxjs-serial-subscription';
 
 import 'rxjs/add/observable/defer';
 import 'rxjs/add/observable/empty';
@@ -273,7 +272,7 @@ export default class SpellCheckHandler {
         }));
     }
 
-    this.disp.set(disp);
+    this.disp.add(disp);
     return disp;
   }
 
