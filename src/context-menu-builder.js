@@ -269,7 +269,7 @@ export default class ContextMenuBuilder {
   }
 
   isSrcUrlValid(menuInfo) {
-    return menuInfo.srcUrl && menuInfo.srcURL.length > 0;
+    return menuInfo.srcURL && menuInfo.srcURL.length > 0;
   }
 
   /**
