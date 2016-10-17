@@ -1,5 +1,5 @@
 import {clipboard, nativeImage, remote, shell} from 'electron';
-import {truncateString} from './utility';
+import {truncateString, shouldUseHunspell} from './utility';
 
 const {Menu, MenuItem} = remote;
 
@@ -205,7 +205,7 @@ export default class ContextMenuBuilder {
 
     // Gate learning words based on OS support. At some point we can manage a
     // custom dictionary for Hunspell, but today is not that day
-    if (process.platform === 'darwin') {
+    if (!shouldUseHunspell()) {
       let learnWord = new MenuItem({
         label: `Add to Dictionary`,
         click: async () => {
