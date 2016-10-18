@@ -2,7 +2,6 @@ import path from 'path';
 import mkdirp from 'mkdirp';
 
 import {getURLForHunspellDictionary} from './node-spellchecker';
-import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 
 import {Observable} from 'rxjs/Observable';
 
@@ -113,21 +112,8 @@ export default class DictionarySync {
     return ret;
   }
 
-  /**
-   * Pre-download dictionaries for languages that the user is likely to speak
-   * (based usually on their keyboard layouts). Note that this method only works
-   * on Windows currently.
-   *
-   * @param  {Array<String>} languageList     Override the list of languages to
-   *                                          download, for testing.
-   *
-   * @return {Promise<Array<String>>}         A list of strings to dictionaries
-   *                                          that were downloaded.
-   */
-  preloadDictionaries(languageList=null) {
-    return Observable.of(languageList || getInstalledKeyboardLanguages())
-      .mergeMap((x) => Observable.fromPromise(this.loadDictionaryForLanguage(x, true)))
-      .reduce((acc,x) => { acc.push(x); return acc; }, [])
-      .toPromise();
+  preloadDictionaries() {
+    // NB: This is retained solely to not break earlier versions
+    return Observable.of(true);
   }
 }

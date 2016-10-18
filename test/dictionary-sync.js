@@ -3,7 +3,6 @@ import './support';
 import fs from 'fs';
 import path from 'path';
 import rimraf from 'rimraf';
-import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 
 import DictionarySync from '../src/dictionary-sync';
 
@@ -45,7 +44,7 @@ describe('The Dictionary Sync class', function() {
       fs.writeFileSync('./wtfisthisfile', ret);
       throw new Error("Didn't fail!");
     });
-    
+
     it('should throw when we try to load es-MX because Google doesnt have it', async function() {
       let ret = null;
       try {
@@ -57,25 +56,7 @@ describe('The Dictionary Sync class', function() {
       d(ret);
       d(typeof ret);
       fs.writeFileSync('./wtfisthisfile', ret);
-      throw new Error("Didn't fail!");    
-    });
-  });
-
-  describe('preloadDictionaries', function() {
-    this.timeout(60*1000);
-
-    it('should preload some dictionaries', async function() {
-      if (process.platform === 'linux') return;
-
-      let installedLangs = getInstalledKeyboardLanguages();
-      if (!installedLangs || installedLangs.length < 1) return;
-
-      let langFiles = await this.fixture.preloadDictionaries();
-
-      expect(langFiles.length).to.equal(installedLangs.length);
-      for (let lang of langFiles) {
-        expect(fs.existsSync(lang)).to.be.ok;
-      }
+      throw new Error("Didn't fail!");
     });
   });
 });
