@@ -1,5 +1,6 @@
 import {Observable} from 'rxjs/Observable';
 
+import 'rxjs/add/observable/timer';
 import 'rxjs/add/operator/map';
 import 'rxjs/add/operator/switch';
 
