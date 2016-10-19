@@ -23,6 +23,7 @@ import 'rxjs/add/operator/reduce';
 import 'rxjs/add/operator/startWith';
 import 'rxjs/add/operator/take';
 import 'rxjs/add/operator/takeUntil';
+import 'rxjs/add/operator/throttle';
 import 'rxjs/add/operator/toPromise';
 
 import './custom-operators';
