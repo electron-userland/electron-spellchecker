@@ -234,6 +234,7 @@ export default class SpellCheckHandler {
       });
 
     let languageDetectionMatches = contentToCheck
+      .throttle(4*1000)
       .mergeMap((text) => {
         d(`Attempting detection, string length: ${text.length}`);
         return Observable.fromPromise(this.detectLanguageForText(text))
