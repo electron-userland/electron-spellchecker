@@ -322,7 +322,7 @@ export default class SpellCheckHandler {
   async provideHintText(inputText) {
     let langWithoutLocale = null;
     try {
-      langWithoutLocale = await this.detectLanguageForText(inputText);
+      langWithoutLocale = await this.detectLanguageForText(inputText.substring(0, 512));
     } catch (e) {
       d(`Couldn't detect language for text of length '${inputText.length}': ${e.message}, ignoring sample`);
       return;
