@@ -1,5 +1,6 @@
 import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 import {spawn} from 'spawn-rx';
+import {requireTaskPool} from 'electron-remote';
 
 import {Subscription} from 'rxjs/Subscription';
 import {Observable} from 'rxjs/Observable';
@@ -36,7 +37,7 @@ import {Spellchecker} from './node-spellchecker';
 
 let d = require('debug-electron')('electron-spellchecker:spell-check-handler');
 
-let cld = null;
+const cld = requireTaskPool(require.resolve('./cld2'));
 let fallbackLocaleTable = null;
 let webFrame = (process.type === 'renderer' ?
   require('electron').webFrame :
@@ -235,7 +236,6 @@ export default class SpellCheckHandler {
       });
 
     let languageDetectionMatches = contentToCheck
-      .throttle(4*1000)
       .mergeMap((text) => {
         d(`Attempting detection, string length: ${text.length}`);
         if (text.length > 256) {
@@ -447,19 +447,8 @@ export default class SpellCheckHandler {
    * @private
    */
   detectLanguageForText(text) {
-    // NB: Unfortuantely cld marshals errors incorrectly, so we can't use pify
-    cld = cld || require('@paulcbetts/cld');
-
     return new Promise((res,rej) => {
-      cld.detect(text, (err, result) => {
-        if (err) { rej(new Error(err.message)); return; }
-        if (!result.reliable || result.languages[0].percent < 85) {
-          rej(new Error('Not enough reliable text'));
-          return;
-        }
-
-        res(result.languages[0].code);
-      });
+      setImmediate(() => cld.detect(text).then(res, rej));
     });
   }
 
