@@ -238,6 +238,10 @@ export default class SpellCheckHandler {
       .throttle(4*1000)
       .mergeMap((text) => {
         d(`Attempting detection, string length: ${text.length}`);
+        if (text.length > 256) {
+          text = text.substr(text.length - 256);
+        }
+
         return Observable.fromPromise(this.detectLanguageForText(text))
           .catch(() => Observable.empty());
       });
