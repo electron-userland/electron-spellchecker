@@ -326,6 +326,8 @@ export default class SpellCheckHandler {
    */
   async provideHintText(inputText) {
     let langWithoutLocale = null;
+    if (process.platform === 'darwin') return;
+
     try {
       langWithoutLocale = await this.detectLanguageForText(inputText.substring(0, 512));
     } catch (e) {
@@ -350,6 +352,7 @@ export default class SpellCheckHandler {
   async switchLanguage(langCode) {
     let actualLang;
     let dict = null;
+    if (process.platform === 'darwin') return;
 
     try {
       let {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
