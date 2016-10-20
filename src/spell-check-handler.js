@@ -451,7 +451,7 @@ export default class SpellCheckHandler {
    */
   detectLanguageForText(text) {
     return new Promise((res,rej) => {
-      setImmediate(() => cld.detect(text).then(res, rej));
+      setTimeout(() => cld.detect(text).then(res, rej), 10);
     });
   }
 
