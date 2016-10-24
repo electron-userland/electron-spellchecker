@@ -429,7 +429,7 @@ export default class SpellCheckHandler {
     if (!this.currentSpellchecker) return true;
 
     if (process.platform === 'darwin') {
-      return !this.currentSpellchecker.isMisspelled(text);
+      return !this.isMisspelled(text);
     }
 
     this.spellCheckInvoked.next(true);
