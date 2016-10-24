@@ -424,6 +424,10 @@ export default class SpellCheckHandler {
     if (!this.currentSpellchecker) return true;
     this.spellCheckInvoked.next(true);
 
+    if (process.platform === 'darwin') {
+      return !this.currentSpellchecker.isMisspelled(text);
+    }
+
     if (contractionMap[text.toLocaleLowerCase()]) return true;
 
     // NB: I'm not smart enough to fix this bug in Chromium's version of
