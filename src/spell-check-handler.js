@@ -1,6 +1,7 @@
 import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 import {spawn} from 'spawn-rx';
 import {requireTaskPool} from 'electron-remote';
+import LRU from 'lru-cache';
 
 import {Subscription} from 'rxjs/Subscription';
 import {Observable} from 'rxjs/Observable';
@@ -121,6 +122,10 @@ export default class SpellCheckHandler {
     this.currentSpellcheckerChanged = new Subject();
     this.spellCheckInvoked = new Subject();
     this.spellingErrorOccurred = new Subject();
+    this.isMisspelledCache = new LRU({
+      max: 32,
+      maxAge: 8 * 1000
+    });
 
     this.scheduler = scheduler;
     this.shouldAutoCorrect = true;
@@ -422,31 +427,59 @@ export default class SpellCheckHandler {
    */
   handleElectronSpellCheck(text) {
     if (!this.currentSpellchecker) return true;
-    this.spellCheckInvoked.next(true);
 
     if (process.platform === 'darwin') {
       return !this.currentSpellchecker.isMisspelled(text);
     }
 
-    if (contractionMap[text.toLocaleLowerCase()]) return true;
+    this.spellCheckInvoked.next(true);
 
-    // NB: I'm not smart enough to fix this bug in Chromium's version of
-    // Hunspell so I'm going to fix it here instead. Chromium Hunspell for
-    // whatever reason marks the first word in a sentence as mispelled if it is
-    // capitalized.
-    let result = this.currentSpellchecker.checkSpelling(text);
-    if (result.length < 1) return true;
-    if (result[0].start !== 0) {
-      this.spellingErrorOccurred.next(text);
-      return false;
+    let result = this.isMisspelled(text);
+    if (result) this.spellingErrorOccurred.next(text);
+    return !result;
+  }
+
+  /**
+   * Calculates whether a word is missspelled, using an LRU cache to memoize
+   * the callout to the actual spell check code.
+   *
+   * @private
+   */
+  isMisspelled(text) {
+    let result = this.isMisspelledCache.get(text);
+    if (result !== undefined) {
+      return result;
     }
 
-    let ret = this.currentSpellchecker.isMisspelled(text.toLocaleLowerCase());
-    if (ret) {
-      this.spellingErrorOccurred.next(text);
-    }
+    result = (() => {
+      if (process.platform === 'darwin') {
+        return this.currentSpellchecker.isMisspelled(text);
+      }
 
-    return !ret;
+      if (contractionMap[text.toLocaleLowerCase()]) {
+        return false;
+      }
+
+      // NB: I'm not smart enough to fix this bug in Chromium's version of
+      // Hunspell so I'm going to fix it here instead. Chromium Hunspell for
+      // whatever reason marks the first word in a sentence as mispelled if it is
+      // capitalized.
+      result = this.currentSpellchecker.checkSpelling(text);
+      if (result.length < 1) {
+        return false;
+      }
+
+      if (result[0].start !== 0) {
+        // If we're not at the beginning, we know it's not a false positive
+        return true;
+      }
+
+      // Retry with lowercase
+      return this.currentSpellchecker.isMisspelled(text.toLocaleLowerCase());
+    })();
+
+    this.isMisspelledCache.set(text, result);
+    return result;
   }
 
   /**
