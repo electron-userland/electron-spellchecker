@@ -454,12 +454,12 @@ export default class SpellCheckHandler {
     }
 
     result = (() => {
-      if (isMac) {
-        return this.currentSpellchecker.isMisspelled(text);
-      }
-
       if (contractionMap[text.toLocaleLowerCase()]) {
         return false;
+      }
+
+      if (isMac) {
+        return this.currentSpellchecker.isMisspelled(text);
       }
 
       // NB: I'm not smart enough to fix this bug in Chromium's version of
