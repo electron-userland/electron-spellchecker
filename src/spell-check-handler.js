@@ -48,6 +48,8 @@ let webFrame = (process.type === 'renderer' ?
 // we're trying really hard to match the Chromium way of `en-US`
 const validLangCodeWindowsLinux = /[a-z]{2}[_][A-Z]{2}/;
 
+const isMac = process.platform === 'darwin';
+
 // NB: This is to work around electron/electron#1005, where contractions
 // are incorrectly marked as spelling errors. This lets people get away with
 // incorrectly spelled contracted words, but it's the best we can do for now.
@@ -140,7 +142,7 @@ export default class SpellCheckHandler {
 
     this.disp = new SerialSubscription();
 
-    if (process.platform === 'darwin') {
+    if (isMac) {
       // NB: OS X does automatic language detection, we're gonna trust it
       this.currentSpellchecker = new Spellchecker();
       this.currentSpellcheckerLanguage = 'en-US';
@@ -187,7 +189,7 @@ export default class SpellCheckHandler {
    */
   attachToInput(inputText=null) {
     // OS X has no need for any of this
-    if (process.platform === 'darwin' && !inputText) {
+    if (isMac && !inputText) {
       return Subscription.EMPTY;
     }
 
@@ -296,7 +298,7 @@ export default class SpellCheckHandler {
     let ret = new Subscription();
     let hasUnloaded = false;
 
-    if (process.platform === 'darwin') return Subscription.EMPTY;
+    if (isMac) return Subscription.EMPTY;
 
     ret.add(Observable.fromEvent(window, 'blur').subscribe(() => {
       d(`Unloading spellchecker`);
@@ -331,7 +333,7 @@ export default class SpellCheckHandler {
    */
   async provideHintText(inputText) {
     let langWithoutLocale = null;
-    if (process.platform === 'darwin') return;
+    if (isMac) return;
 
     try {
       langWithoutLocale = await this.detectLanguageForText(inputText.substring(0, 512));
@@ -357,7 +359,7 @@ export default class SpellCheckHandler {
   async switchLanguage(langCode) {
     let actualLang;
     let dict = null;
-    if (process.platform === 'darwin') return;
+    if (isMac) return;
 
     try {
       let {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
@@ -428,7 +430,7 @@ export default class SpellCheckHandler {
   handleElectronSpellCheck(text) {
     if (!this.currentSpellchecker) return true;
 
-    if (process.platform === 'darwin') {
+    if (isMac) {
       return !this.isMisspelled(text);
     }
 
@@ -452,12 +454,12 @@ export default class SpellCheckHandler {
     }
 
     result = (() => {
-      if (process.platform === 'darwin') {
-        return this.currentSpellchecker.isMisspelled(text);
-      }
-
       if (contractionMap[text.toLocaleLowerCase()]) {
         return false;
+      }
+
+      if (isMac) {
+        return this.currentSpellchecker.isMisspelled(text);
       }
 
       // NB: I'm not smart enough to fix this bug in Chromium's version of
@@ -527,7 +529,7 @@ export default class SpellCheckHandler {
    */
   async addToDictionary(text) {
     // NB: Same deal as getCorrectionsForMisspelling.
-    if (process.platform !== 'darwin') return;
+    if (!isMac) return;
     if (!this.currentSpellchecker) return;
 
     this.currentSpellchecker.add(text);
@@ -562,7 +564,7 @@ export default class SpellCheckHandler {
       localeList = getInstalledKeyboardLanguages();
     }
 
-    if (process.platform === 'darwin') {
+    if (isMac) {
       fallbackLocaleTable = fallbackLocaleTable || require('./fallback-locales');
 
       // NB: OS X will return lists that are half just a language, half
