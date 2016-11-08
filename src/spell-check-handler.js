@@ -362,11 +362,16 @@ export default class SpellCheckHandler {
     if (isMac) return;
 
     try {
-      let {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
-      actualLang = language;  dict = dictionary;
+      const {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
+      actualLang = language; dict = dictionary;
     } catch (e) {
       d(`Failed to load dictionary ${langCode}: ${e.message}`);
       throw e;
+    }
+
+    if (!dict) {
+      d(`dictionary for ${langCode}_${actualLang} is not available`);
+      return;
     }
 
     d(`Setting current spellchecker to ${actualLang}, requested language was ${langCode}`);
@@ -420,7 +425,8 @@ export default class SpellCheckHandler {
       })
       .filter((x) => x !== null)
       .take(1)
-      .toPromise();
+      .toPromise()
+      .then(x => x || {});
   }
 
   /**
