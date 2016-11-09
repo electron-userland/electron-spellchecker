@@ -15,6 +15,7 @@ import 'rxjs/add/observable/fromPromise';
 import 'rxjs/add/observable/of';
 
 import 'rxjs/add/operator/catch';
+import 'rxjs/add/operator/concat';
 import 'rxjs/add/operator/concatMap';
 import 'rxjs/add/operator/do';
 import 'rxjs/add/operator/filter';
@@ -272,7 +273,7 @@ export default class SpellCheckHandler {
     if (webFrame) {
       disp.add(this.currentSpellcheckerChanged
           .startWith(true)
-        .filter(() => this.currentSpellchecker)
+        .filter(() => this.currentSpellcheckerLanguage)
         .subscribe(() => {
           d('Actually installing spell check provider to Electron');
 
@@ -362,11 +363,19 @@ export default class SpellCheckHandler {
     if (isMac) return;
 
     try {
-      let {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
-      actualLang = language;  dict = dictionary;
+      const {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
+      actualLang = language; dict = dictionary;
     } catch (e) {
       d(`Failed to load dictionary ${langCode}: ${e.message}`);
       throw e;
+    }
+
+    if (!dict) {
+      d(`dictionary for ${langCode}_${actualLang} is not available`);
+      this.currentSpellcheckerLanguage = actualLang;
+      this.currentSpellchecker = null;
+      this.currentSpellcheckerChanged.next(true);
+      return;
     }
 
     d(`Setting current spellchecker to ${actualLang}, requested language was ${langCode}`);
@@ -418,6 +427,7 @@ export default class SpellCheckHandler {
           })
           .catch(() => Observable.of(null));
       })
+      .concat(Observable.of({language: langCode, dictionary: null}))
       .filter((x) => x !== null)
       .take(1)
       .toPromise();
@@ -457,6 +467,8 @@ export default class SpellCheckHandler {
       if (contractionMap[text.toLocaleLowerCase()]) {
         return false;
       }
+
+      if (!this.currentSpellchecker) return false;
 
       if (isMac) {
         return this.currentSpellchecker.isMisspelled(text);
