@@ -385,7 +385,12 @@ export default class ContextMenuBuilder {
         return d(`Additional item did not contain menuItem property`);
       }
 
-      if (typeof item.position === Number) {
+      if (item.condition !== undefined && (!item.condition ||
+        (typeof item.condition === 'function' && !item.condition()))) {
+        return menu;
+      }
+
+      if (typeof item.position === 'number') {
         menu.insert(item.position, item.menuItem);
       } else if (item.position === 'append') {
         menu.append(item.menuItem);
