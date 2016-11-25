@@ -1,5 +1,5 @@
 import {clipboard, nativeImage, remote, shell} from 'electron';
-import {truncateString} from './utility';
+import {truncateString, matchesWord} from './utility';
 
 const {Menu, MenuItem} = remote;
 
@@ -235,7 +235,7 @@ export default class ContextMenuBuilder {
       return menu;
     }
 
-    let match = menuInfo.selectionText.match(/\w/);
+    let match = matchesWord(menuInfo.selectionText);
     if (!match || match.length === 0) {
       return menu;
     }
