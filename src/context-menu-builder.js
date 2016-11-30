@@ -20,11 +20,14 @@ export default class ContextMenuBuilder {
    *                                                recommendations for.
    * @param  {BrowserWindow|WebView} windowOrWebView  The hosting window/WebView
    * @param  {Boolean} debugMode    If true, display the "Inspect Element" menu item.
+   * @param  {function} processMenu If passed, this method will be passed the menu to change
+   *                                it prior to display. Signature: (menu, info) => menu
    */
-  constructor(spellCheckHandler, windowOrWebView=null, debugMode=false) {
+  constructor(spellCheckHandler, windowOrWebView=null, debugMode=false, processMenu=(m) => m) {
     this.spellCheckHandler = spellCheckHandler;
     this.windowOrWebView = windowOrWebView || remote.getCurrentWindow();
     this.debugMode = debugMode;
+    this.processMenu = processMenu;
     this.menu = null;
   }
 
@@ -96,6 +99,7 @@ export default class ContextMenuBuilder {
     this.addCopy(menu, menuInfo);
     this.addPaste(menu, menuInfo);
     this.addInspectElement(menu, menuInfo);
+    this.processMenu(menu);
 
     return menu;
   }
