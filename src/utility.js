@@ -39,5 +39,3 @@ export function matchesWord(string) {
 
   return string.match(regex);
 }
-
-console.log(matchesWord('hello'))

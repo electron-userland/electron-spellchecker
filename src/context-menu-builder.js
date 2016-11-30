@@ -139,6 +139,7 @@ export default class ContextMenuBuilder {
     }
 
     this.addInspectElement(menu, menuInfo);
+    this.processMenu(menu, menuInfo);
 
     return menu;
   }
@@ -154,6 +155,7 @@ export default class ContextMenuBuilder {
     this.addSearchItems(menu, menuInfo);
     this.addCopy(menu, menuInfo);
     this.addInspectElement(menu, menuInfo);
+    this.processMenu(menu, menuInfo);
 
     return menu;
   }
@@ -170,6 +172,8 @@ export default class ContextMenuBuilder {
       this.addImageItems(menu, menuInfo);
     }
     this.addInspectElement(menu, menuInfo);
+    this.processMenu(menu, menuInfo);
+
     return menu;
   }
 
