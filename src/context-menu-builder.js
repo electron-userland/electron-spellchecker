@@ -20,12 +20,14 @@ export default class ContextMenuBuilder {
    *                                                recommendations for.
    * @param  {BrowserWindow|WebView} windowOrWebView  The hosting window/WebView
    * @param  {Boolean} debugMode    If true, display the "Inspect Element" menu item.
+   * @param  {function} processMenu If passed, this method will be passed the menu to change
+   *                                it prior to display. Signature: (menu, info) => menu
    */
-  constructor(spellCheckHandler, windowOrWebView=null, debugMode=false, additionalItems = []) {
+  constructor(spellCheckHandler, windowOrWebView=null, debugMode=false, processMenu=(m) => m) {
     this.spellCheckHandler = spellCheckHandler;
     this.windowOrWebView = windowOrWebView || remote.getCurrentWindow();
     this.debugMode = debugMode;
-    this.additionalItems = additionalItems;
+    this.processMenu = processMenu;
     this.menu = null;
   }
 
@@ -97,7 +99,7 @@ export default class ContextMenuBuilder {
     this.addCopy(menu, menuInfo);
     this.addPaste(menu, menuInfo);
     this.addInspectElement(menu, menuInfo);
-    this.addAdditionalItems(menu);
+    this.processMenu(menu);
 
     return menu;
   }
@@ -137,7 +139,6 @@ export default class ContextMenuBuilder {
     }
 
     this.addInspectElement(menu, menuInfo);
-    this.addAdditionalItems(menu);
 
     return menu;
   }
@@ -153,7 +154,6 @@ export default class ContextMenuBuilder {
     this.addSearchItems(menu, menuInfo);
     this.addCopy(menu, menuInfo);
     this.addInspectElement(menu, menuInfo);
-    this.addAdditionalItems(menu);
 
     return menu;
   }
@@ -170,7 +170,6 @@ export default class ContextMenuBuilder {
       this.addImageItems(menu, menuInfo);
     }
     this.addInspectElement(menu, menuInfo);
-    this.addAdditionalItems(menu);
     return menu;
   }
 
@@ -373,30 +372,6 @@ export default class ContextMenuBuilder {
     });
 
     menu.append(inspect);
-    return menu;
-  }
-
-  /**
-   * Adds additional items to the menu
-   */
-  addAdditionalItems(menu) {
-    this.additionalItems.forEach((item) => {
-      if (!item.menuItem) {
-        return d(`Additional item did not contain menuItem property`);
-      }
-
-      if (item.condition !== undefined && (!item.condition ||
-        (typeof item.condition === 'function' && !item.condition()))) {
-        return menu;
-      }
-
-      if (typeof item.position === 'number') {
-        menu.insert(item.position, item.menuItem);
-      } else if (item.position === 'append') {
-        menu.append(item.menuItem);
-      }
-    });
-
     return menu;
   }
 
