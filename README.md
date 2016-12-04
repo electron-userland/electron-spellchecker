@@ -9,7 +9,7 @@ electron-spellchecker:
 * Spell checks in all of the languages that Google Chrome supports by reusing its dictionaries.
 * Automatically detects the language the user is typing in and silently switches on the fly.
 * Handles locale correctly and automatically (i.e. users who are from Australia should not be corrected for 'colour', but US English speakers should)
-* Automatically downloads and manages dictionaries in the background. 
+* Automatically downloads and manages dictionaries in the background.
 * Checks very quickly, doesn't introduce input lag which is extremely noticable
 * Only loads one Dictionary at a time which saves a significant amount of memory
 
@@ -28,6 +28,14 @@ let contextMenuBuilder = new ContextMenuBuilder(window.spellCheckHandler);
 let contextMenuListener = new ContextMenuListener((info) => {
   contextMenuBuilder.showPopupMenu(info);
 });
+
+// Clean up events after you navigate away from this page;
+// otherwise, you may experience errors
+window.addEventListener('beforeunload', function() {
+	spellCheckHandler.unsubscribe();
+	contextMenuListener.unsubscribe();
+});
+
 ```
 
 ## Language Auto-Detection
