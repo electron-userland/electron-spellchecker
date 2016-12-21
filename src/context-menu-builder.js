@@ -5,6 +5,21 @@ const {Menu, MenuItem} = remote;
 
 let d = require('debug-electron')('electron-spellchecker:context-menu-builder');
 
+const contextMenuStringTable = {
+  copyMail: () => `Copy Email Address`,
+  copyLinkUrl: () => `Copy Link`,
+  openLinkUrl: () => `Open Link`,
+  copyImageUrl: () => `Copy Image URL`,
+  copyImage: () => `Copy Image`,
+  addToDictionary: () => `Add to Dictionary`,
+  lookUpDefinition: ({word}) => `Look Up "${word}"`,
+  searchGoogle: () => `Search with Google`,
+  cut: () => `Cut`,
+  copy: () => `Copy`,
+  paste: () => `Paste`,
+  inspectElement: () => `Inspect Element`,
+};
+
 /**
  * ContextMenuBuilder creates context menus based on the content clicked - this
  * information is derived from
@@ -29,6 +44,7 @@ export default class ContextMenuBuilder {
     this.debugMode = debugMode;
     this.processMenu = processMenu;
     this.menu = null;
+    this.stringTable = Object.assign({}, contextMenuStringTable);
   }
 
   /**
@@ -39,6 +55,21 @@ export default class ContextMenuBuilder {
    */
   static setLogger(fn) {
     d = fn;
+  }
+
+  /**
+   * Specify alternate string formatter for each context menu.
+   * String table consist of string formatter as function instead per each context menu item,
+   * allows to change string in runtime. All formatters are simply typeof () => string, except
+   * lookUpDefinition provides word, ({word}) => string.
+   *
+   * @param {Object} stringTable The object contains string foramtter function for context menu.
+   * It is allowed to specify only certain menu string as necessary, which will makes other string
+   * fall backs to default.
+   *
+   */
+  setAlternateStringFormatter(stringTable) {
+    this.contextMenuStringTable = Object.assign(this.stringTable, stringTable);
   }
 
   /**
@@ -114,7 +145,7 @@ export default class ContextMenuBuilder {
     let isEmailAddress = menuInfo.linkURL.startsWith('mailto:');
 
     let copyLink = new MenuItem({
-      label: isEmailAddress ? 'Copy Email Address' : 'Copy Link',
+      label: isEmailAddress ? this.stringTable.copyMail() : this.stringTable.copyLinkUrl(),
       click: () => {
         // Omit the mailto: portion of the link; we just want the address
         clipboard.writeText(isEmailAddress ?
@@ -123,7 +154,7 @@ export default class ContextMenuBuilder {
     });
 
     let openLink = new MenuItem({
-      label: 'Open Link',
+      label: this.stringTable.openLinkUrl(),
       click: () => {
         //d(`Navigating to: ${menuInfo.linkURL}`);
         shell.openExternal(menuInfo.linkURL);
@@ -215,7 +246,7 @@ export default class ContextMenuBuilder {
     // custom dictionary for Hunspell, but today is not that day
     if (process.platform === 'darwin') {
       let learnWord = new MenuItem({
-        label: `Add to Dictionary`,
+        label: this.stringTable.addToDictionary(),
         click: async () => {
           // NB: This is a gross fix to invalidate the spelling underline,
           // refer to https://github.com/tinyspeck/slack-winssb/issues/354
@@ -253,7 +284,7 @@ export default class ContextMenuBuilder {
         this.windowOrWebView.webContents : this.windowOrWebView;
 
       let lookUpDefinition = new MenuItem({
-        label: `Look Up “${truncateString(menuInfo.selectionText)}”`,
+        label: this.stringTable.lookUpDefinition({word: truncateString(menuInfo.selectionText)}),
         click: () => target.showDefinitionForSelection()
       });
 
@@ -261,7 +292,7 @@ export default class ContextMenuBuilder {
     }
 
     let search = new MenuItem({
-      label: 'Search with Google',
+      label: this.stringTable.searchGoogle(),
       click: () => {
         let url = `https://www.google.com/#q=${encodeURIComponent(menuInfo.selectionText)}`;
 
@@ -285,7 +316,7 @@ export default class ContextMenuBuilder {
    */
   addImageItems(menu, menuInfo) {
     let copyImage = new MenuItem({
-      label: 'Copy Image',
+      label: this.stringTable.copyImage(),
       click: () => this.convertImageToBase64(menuInfo.srcURL,
         (dataURL) => clipboard.writeImage(nativeImage.createFromDataURL(dataURL)))
     });
@@ -293,7 +324,7 @@ export default class ContextMenuBuilder {
     menu.append(copyImage);
 
     let copyImageUrl = new MenuItem({
-      label: 'Copy Image URL',
+      label: this.stringTable.copyImageUrl(),
       click: () => clipboard.writeText(menuInfo.srcURL)
     });
 
@@ -309,7 +340,7 @@ export default class ContextMenuBuilder {
       this.windowOrWebView.webContents : this.windowOrWebView;
 
     menu.append(new MenuItem({
-      label: 'Cut',
+      label: this.stringTable.cut(),
       accelerator: 'CommandOrControl+X',
       enabled: menuInfo.editFlags.canCut,
       click: () => target.cut()
@@ -326,7 +357,7 @@ export default class ContextMenuBuilder {
       this.windowOrWebView.webContents : this.windowOrWebView;
 
     menu.append(new MenuItem({
-      label: 'Copy',
+      label: this.stringTable.copy(),
       accelerator: 'CommandOrControl+C',
       enabled: menuInfo.editFlags.canCopy,
       click: () => target.copy()
@@ -343,7 +374,7 @@ export default class ContextMenuBuilder {
       this.windowOrWebView.webContents : this.windowOrWebView;
 
     menu.append(new MenuItem({
-      label: 'Paste',
+      label: this.stringTable.paste(),
       accelerator: 'CommandOrControl+V',
       enabled: menuInfo.editFlags.canPaste,
       click: () => target.paste()
@@ -371,7 +402,7 @@ export default class ContextMenuBuilder {
     if (needsSeparator) this.addSeparator(menu);
 
     let inspect = new MenuItem({
-      label: 'Inspect Element',
+      label: this.stringTable.inspectElement(),
       click: () => target.inspectElement(menuInfo.x, menuInfo.y)
     });
 
