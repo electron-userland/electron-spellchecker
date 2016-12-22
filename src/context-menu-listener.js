@@ -5,7 +5,7 @@ import { Subscription } from 'rxjs/Subscription';
 import 'rxjs/add/observable/fromEvent';
 import 'rxjs/add/operator/map';
 
-let d = require('debug-electron')('electron-spellchecker:context-menu-listener');
+let d = require('debug')('electron-spellchecker:context-menu-listener');
 
 /**
  * ContextMenuListener will listen to the given window / WebView control and

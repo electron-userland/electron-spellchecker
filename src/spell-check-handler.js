@@ -37,7 +37,7 @@ import FakeLocalStorage from './fake-local-storage';
 
 import {Spellchecker} from './node-spellchecker';
 
-let d = require('debug-electron')('electron-spellchecker:spell-check-handler');
+let d = require('debug')('electron-spellchecker:spell-check-handler');
 
 const cld = requireTaskPool(require.resolve('./cld2'));
 let fallbackLocaleTable = null;

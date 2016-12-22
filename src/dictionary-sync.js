@@ -14,7 +14,7 @@ import 'rxjs/add/operator/toPromise';
 import {fs} from './promisify';
 import {normalizeLanguageCode} from './utility';
 
-let d = require('debug-electron')('electron-spellchecker:dictionary-sync');
+let d = require('debug')('electron-spellchecker:dictionary-sync');
 
 const app = process.type === 'renderer' ?
   require('electron').remote.app :

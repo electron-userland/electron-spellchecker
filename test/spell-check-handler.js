@@ -8,7 +8,7 @@ import FakeLocalStorage from '../src/fake-local-storage';
 import DictionarySync from '../src/dictionary-sync';
 import SpellCheckHandler from '../src/spell-check-handler';
 
-const d = require('debug-electron')('electron-spellchecker-test:spell-check-handler');
+const d = require('debug')('electron-spellchecker-test:spell-check-handler');
 
 let testCount = 0;
 

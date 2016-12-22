@@ -3,7 +3,7 @@ import {truncateString, matchesWord} from './utility';
 
 const {Menu, MenuItem} = remote;
 
-let d = require('debug-electron')('electron-spellchecker:context-menu-builder');
+let d = require('debug')('electron-spellchecker:context-menu-builder');
 
 /**
  * ContextMenuBuilder creates context menus based on the content clicked - this
