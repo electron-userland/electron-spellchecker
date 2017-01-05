@@ -1,6 +1,6 @@
 # electron-spellchecker
 
-![](https://img.shields.io/npm/dm/electron-spellchecker.svg) <a href="http://paulcbetts.github.io/electron-spellchecker/docs">![](http://paulcbetts.github.io/electron-spellchecker/docs/badge.svg)</a>
+![](https://img.shields.io/npm/dm/electron-spellchecker.svg) <a href="https://electron-userland.github.io/electron-spellchecker/docs">![](https://electron-userland.github.io/electron-spellchecker/docs/badge.svg)</a>
 
 electron-spellchecker is a library to help you implement spellchecking in your Electron applications, as well as handle default right-click Context Menus (since spell checking shows up in them).  This library intends to solve the problem of spellchecking in a production-ready, international-friendly way.
 
@@ -38,5 +38,5 @@ Sample text should be text that is reasonably likely to be in the same language 
 
 ## Learning more
 
-* Run `npm start` to start [the example application](https://github.com/paulcbetts/electron-spellchecker/tree/master/example) and play around.
-* Read [the class documentation](http://paulcbetts.github.io/electron-spellchecker/docs) to learn more.
+* Run `npm start` to start [the example application](https://github.com/electron-userland/electron-spellchecker/tree/master/example) and play around.
+* Read [the class documentation](https://electron-userland.github.io/electron-spellchecker/docs/) to learn more.
