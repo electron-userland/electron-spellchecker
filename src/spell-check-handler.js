@@ -197,6 +197,10 @@ export default class SpellCheckHandler {
     let possiblySwitchedCharacterSets = new Subject();
     let wordsTyped = 0;
 
+    if (!inputText && !document.body) {
+      throw new Error("document.body is null, if you're calling this in a preload script you need to wrap it in a setTimeout");
+    }
+
     let input = inputText || (fromEventCapture(document.body, 'input')
       .mergeMap((e) => {
         if (!e.target || !e.target.value) return Observable.empty();
