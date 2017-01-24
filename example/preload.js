@@ -5,10 +5,7 @@ const ContextMenuListener = require('../lib/context-menu-listener').default;
 const ContextMenuBuilder = require('../lib/context-menu-builder').default;
 
 window.spellCheckHandler = new SpellCheckHandler();
-setTimeout(() => {
-  console.log("ATTACHING TO INPUT WTF: " + !!document.body);
-  window.spellCheckHandler.attachToInput();
-}, 1000);
+setTimeout(() => window.spellCheckHandler.attachToInput(), 1000);
 
 window.spellCheckHandler.provideHintText('This is probably the language that you want to check in');
 window.spellCheckHandler.autoUnloadDictionariesOnBlur();
