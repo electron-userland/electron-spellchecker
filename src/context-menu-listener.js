@@ -1,6 +1,7 @@
 import {remote} from 'electron';
 import { Observable } from 'rxjs/Observable';
 import { Subscription } from 'rxjs/Subscription';
+import { fromRemoteWindow } from 'electron-remote';
 
 import 'rxjs/add/observable/fromEvent';
 import 'rxjs/add/operator/map';
@@ -29,12 +30,7 @@ export default class ContextMenuListener {
 
     if (!contextMenuEvent) {
       windowOrWebView = windowOrWebView || remote.getCurrentWebContents();
-      let target = 'webContents' in windowOrWebView ?
-        windowOrWebView.webContents : windowOrWebView;
-
-      contextMenuEvent = Observable.fromEvent(target, 'context-menu',
-          (e,p) => { e.preventDefault(); return p; })
-        .map((x) => JSON.parse(JSON.stringify(x)));
+      contextMenuEvent = fromRemoteWindow(windowOrWebView, 'context-menu', true).map(([x]) => x[1]);
     }
 
     this.sub.add(contextMenuEvent.subscribe(handler));
