@@ -49,9 +49,13 @@ export default class ContextMenuBuilder {
 
     let ctorName = Object.getPrototypeOf(windowOrWebView).constructor.name;
     if (ctorName === 'WebContents') {
-      this.webContents = windowOrWebView;
+      this.getWebContents = () => windowOrWebView;
     } else {
-      this.webContents = ('webContents' in windowOrWebView ? windowOrWebView.webContents : windowOrWebView.getWebContents());
+      // NB: We do this because at the time a WebView is created, it doesn't
+      // have a WebContents, we need to defer the call to getWebContents
+      this.getWebContents = 'webContents' in windowOrWebView ? 
+        () => windowOrWebView.webContents : 
+        () => windowOrWebView.getWebContents();
     }
   }
 
@@ -221,7 +225,7 @@ export default class ContextMenuBuilder {
    * if so, adds suggested spellings as individual menu items.
    */
   async addSpellingItems(menu, menuInfo) {
-    let target = this.webContents;
+    let target = this.getWebContents();
     if (!menuInfo.misspelledWord || menuInfo.misspelledWord.length < 1) {
       return menu;
     }
@@ -286,7 +290,7 @@ export default class ContextMenuBuilder {
     }
 
     if (process.platform === 'darwin') {
-      let target = this.webContents;
+      let target = this.getWebContents();
 
       let lookUpDefinition = new MenuItem({
         label: this.stringTable.lookUpDefinition({word: truncateString(menuInfo.selectionText)}),
@@ -341,7 +345,7 @@ export default class ContextMenuBuilder {
    * Adds the Cut menu item
    */
   addCut(menu, menuInfo) {
-    let target = this.webContents;
+    let target = this.getWebContents();
     menu.append(new MenuItem({
       label: this.stringTable.cut(),
       accelerator: 'CommandOrControl+X',
@@ -356,7 +360,7 @@ export default class ContextMenuBuilder {
    * Adds the Copy menu item.
    */
   addCopy(menu, menuInfo) {
-    let target = this.webContents;
+    let target = this.getWebContents();
     menu.append(new MenuItem({
       label: this.stringTable.copy(),
       accelerator: 'CommandOrControl+C',
@@ -371,7 +375,7 @@ export default class ContextMenuBuilder {
    * Adds the Paste menu item.
    */
   addPaste(menu, menuInfo) {
-    let target = this.webContents;
+    let target = this.getWebContents();
     menu.append(new MenuItem({
       label: this.stringTable.paste(),
       accelerator: 'CommandOrControl+V',
@@ -394,7 +398,7 @@ export default class ContextMenuBuilder {
    * Adds the "Inspect Element" menu item.
    */
   addInspectElement(menu, menuInfo, needsSeparator=true) {
-    let target = this.webContents; 
+    let target = this.getWebContents(); 
     if (!this.debugMode) return menu;
     if (needsSeparator) this.addSeparator(menu);
 
