@@ -142,20 +142,6 @@ export default class SpellCheckHandler {
     }
 
     this.disp = new SerialSubscription();
-
-    if (isMac) {
-      // NB: OS X does automatic language detection, we're gonna trust it
-      this.currentSpellchecker = new Spellchecker();
-      this.currentSpellcheckerLanguage = 'en-US';
-
-      if (webFrame) {
-        webFrame.setSpellCheckProvider(
-          this.currentSpellcheckerLanguage,
-          this.shouldAutoCorrect,
-          { spellCheck: this.handleElectronSpellCheck.bind(this) });
-      }
-      return;
-    }
   }
 
   /**
@@ -189,11 +175,6 @@ export default class SpellCheckHandler {
    *                            things that this method registered.
    */
   attachToInput(inputText=null) {
-    // OS X has no need for any of this
-    if (isMac && !inputText) {
-      return Subscription.EMPTY;
-    }
-
     let possiblySwitchedCharacterSets = new Subject();
     let wordsTyped = 0;
 
@@ -338,7 +319,6 @@ export default class SpellCheckHandler {
    */
   async provideHintText(inputText) {
     let langWithoutLocale = null;
-    if (isMac) return;
 
     try {
       langWithoutLocale = await this.detectLanguageForText(inputText.substring(0, 512));
@@ -364,21 +344,25 @@ export default class SpellCheckHandler {
   async switchLanguage(langCode) {
     let actualLang;
     let dict = null;
-    if (isMac) return;
 
     try {
-      const {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
-      actualLang = language; dict = dictionary;
+      if (isMac) {
+        actualLang = await this.getLikelyLocaleForLanguage(langCode);
+      } else {
+        const {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
+        actualLang = language; dict = dictionary;
+      }
     } catch (e) {
       d(`Failed to load dictionary ${langCode}: ${e.message}`);
       throw e;
     }
 
-    if (!dict) {
+    if (!dict && !isMac) {
       d(`dictionary for ${langCode}_${actualLang} is not available`);
       this.currentSpellcheckerLanguage = actualLang;
       this.currentSpellchecker = null;
       this.currentSpellcheckerChanged.next(true);
+
       return;
     }
 
@@ -443,10 +427,6 @@ export default class SpellCheckHandler {
    */
   handleElectronSpellCheck(text) {
     if (!this.currentSpellchecker) return true;
-
-    if (isMac) {
-      return !this.isMisspelled(text);
-    }
 
     this.spellCheckInvoked.next(true);
 
