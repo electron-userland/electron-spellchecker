@@ -275,16 +275,21 @@ export default class SpellCheckHandler {
       }));
 
     if (webFrame) {
+      let prevSpellCheckLanguage;
+
       disp.add(this.currentSpellcheckerChanged
           .startWith(true)
         .filter(() => this.currentSpellcheckerLanguage)
         .subscribe(() => {
-          d('Actually installing spell check provider to Electron');
+          if (prevSpellCheckLanguage === this.currentSpellcheckerLanguage) return;
 
+          d('Actually installing spell check provider to Electron');
           webFrame.setSpellCheckProvider(
             this.currentSpellcheckerLanguage,
             this.shouldAutoCorrect,
             { spellCheck: this.handleElectronSpellCheck.bind(this) });
+
+          prevSpellCheckLanguage = this.currentSpellcheckerLanguage;
         }));
     }
 
