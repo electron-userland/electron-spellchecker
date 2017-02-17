@@ -167,6 +167,15 @@ export default class SpellCheckHandler {
   }
 
   /**
+   * Returns whether or not the current spellchecker is a valid instance.
+   */
+  isNullOrEmpty() {
+    if (!this.currentSpellchecker) return true;
+    if (this.currentSpellchecker.constructor.name === 'EmptySpellchecker') return true;
+    return false;
+  }
+
+  /**
    * Override the default logger for this class. You probably want to use
    * {{setGlobalLogger}} instead
    *
@@ -190,7 +199,7 @@ export default class SpellCheckHandler {
    */
   attachToInput(inputText=null) {
     // OS X has no need for any of this
-    if (isMac && !inputText) {
+    if ((isMac && !inputText) || this.isNullOrEmpty()) {
       return Subscription.EMPTY;
     }
 
@@ -308,7 +317,7 @@ export default class SpellCheckHandler {
     let ret = new Subscription();
     let hasUnloaded = false;
 
-    if (isMac) return Subscription.EMPTY;
+    if (isMac || this.isNullOrEmpty()) return Subscription.EMPTY;
 
     ret.add(Observable.fromEvent(window, 'blur').subscribe(() => {
       d(`Unloading spellchecker`);
@@ -343,7 +352,7 @@ export default class SpellCheckHandler {
    */
   async provideHintText(inputText) {
     let langWithoutLocale = null;
-    if (isMac) return;
+    if (isMac || this.isNullOrEmpty()) return;
 
     try {
       langWithoutLocale = await this.detectLanguageForText(inputText.substring(0, 512));
@@ -369,7 +378,7 @@ export default class SpellCheckHandler {
   async switchLanguage(langCode) {
     let actualLang;
     let dict = null;
-    if (isMac) return;
+    if (isMac || this.isNullOrEmpty()) return;
 
     try {
       const {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
@@ -447,7 +456,7 @@ export default class SpellCheckHandler {
    *  @private
    */
   handleElectronSpellCheck(text) {
-    if (!this.currentSpellchecker) return true;
+    if (this.isNullOrEmpty()) return true;
 
     if (isMac) {
       return !this.isMisspelled(text);
