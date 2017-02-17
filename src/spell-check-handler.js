@@ -35,7 +35,7 @@ import DictionarySync from './dictionary-sync';
 import {normalizeLanguageCode} from './utility';
 import FakeLocalStorage from './fake-local-storage';
 
-import {Spellchecker} from './node-spellchecker';
+let Spellchecker;
 
 let d = require('debug')('electron-spellchecker:spell-check-handler');
 
@@ -118,6 +118,9 @@ export default class SpellCheckHandler {
    *                                          testing.
    */
   constructor(dictionarySync=null, localStorage=null, scheduler=null) {
+    // NB: Require here so that consumers can handle native module exceptions.
+    Spellchecker = require('./node-spellchecker').Spellchecker;
+
     this.dictionarySync = dictionarySync || new DictionarySync();
     this.switchToLanguage = new Subject();
     this.currentSpellchecker = null;
