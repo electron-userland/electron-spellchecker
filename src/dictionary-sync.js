@@ -1,8 +1,6 @@
 import path from 'path';
 import mkdirp from 'mkdirp';
 
-import {getURLForHunspellDictionary} from './node-spellchecker';
-
 import {Observable} from 'rxjs/Observable';
 
 import 'rxjs/add/observable/of';
@@ -14,6 +12,7 @@ import 'rxjs/add/operator/toPromise';
 import {fs} from './promisify';
 import {normalizeLanguageCode} from './utility';
 
+let getURLForHunspellDictionary;
 let d = require('debug')('electron-spellchecker:dictionary-sync');
 
 const app = process.type === 'renderer' ?
@@ -36,6 +35,9 @@ export default class DictionarySync {
    *                              will be used.
    */
   constructor(cacheDir=null) {
+    // NB: Require here so that consumers can handle native module exceptions.
+    getURLForHunspellDictionary = require('./node-spellchecker').getURLForHunspellDictionary;
+
     this.cacheDir = cacheDir || path.join(app.getPath('userData'), 'dictionaries');
     mkdirp.sync(this.cacheDir);
   }
