@@ -10,7 +10,7 @@ import { parse } from 'bcp47';
  * @return {String}             The language code in Chromium format.
  */
 export function normalizeLanguageCode(langCode) {
-  let result = parse(langCode);
+  let result = parse(langCode.replace(/[_-]/g, '-'));
   if (!result || !result.langtag.language || !result.langtag.region) {
     throw new Error(`${langCode} is not a valid language code`);
   }
