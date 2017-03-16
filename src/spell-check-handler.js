@@ -401,7 +401,7 @@ export default class SpellCheckHandler {
    */
   async loadDictionaryForLanguageWithAlternatives(langCode, cacheOnly=false) {
     this.fallbackLocaleTable = this.fallbackLocaleTable || require('./fallback-locales');
-    let lang = langCode.substring(0, 2);
+    let lang = langCode.split(/[-_]/)[0];
 
     let alternatives = [langCode, await this.getLikelyLocaleForLanguage(lang), this.fallbackLocaleTable[lang]];
     if (langCode in alternatesTable) {
@@ -593,7 +593,7 @@ export default class SpellCheckHandler {
     // Some distros like Ubuntu make locale -a useless by dumping
     // every possible locale for the language into the list :-/
     let counts = localeList.reduce((acc,x) => {
-      let k = x.substring(0,2);
+      let k = x.split(/[-_\.]/)[0];
       acc[k] = acc[k] || [];
       acc[k].push(x);
 
@@ -616,7 +616,7 @@ export default class SpellCheckHandler {
       let m = process.env.LANG.match(validLangCodeWindowsLinux);
       if (!m) return ret;
 
-      ret[m[0].substring(0, 2)] = normalizeLanguageCode(m[0]);
+      ret[m[0].split(/[-_\.]/)[0]] = normalizeLanguageCode(m[0]);
     }
 
     d(`Result: ${JSON.stringify(ret)}`);
