@@ -366,6 +366,8 @@ export default class SpellCheckHandler {
     let dict = null;
     if (isMac) return;
 
+    this.isMisspelledCache.reset();
+
     try {
       const {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
       actualLang = language; dict = dictionary;
