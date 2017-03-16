@@ -33,7 +33,6 @@ import './custom-operators';
 
 import DictionarySync from './dictionary-sync';
 import {normalizeLanguageCode} from './utility';
-import FakeLocalStorage from './fake-local-storage';
 
 let Spellchecker;
 
@@ -70,6 +69,8 @@ const contractionMap = contractions.reduce((acc, word) => {
   acc[word.replace(/'.*/, '')] = true;
   return acc;
 }, {});
+
+const alternatesTable = {};
 
 /**
  * This method mimics Observable.fromEvent, but with capture semantics.
@@ -112,8 +113,7 @@ export default class SpellCheckHandler {
    *                                          create a custom one if you want
    *                                          to override the dictionary cache
    *                                          location.
-   * @param  {LocalStorage} localStorage      An implementation of localStorage
-   *                                          used for testing.
+   * @param  {LocalStorage} localStorage      Deprecated.
    * @param  {Scheduler} scheduler            The Rx scheduler to use, for
    *                                          testing.
    */
@@ -135,14 +135,6 @@ export default class SpellCheckHandler {
 
     this.scheduler = scheduler;
     this.shouldAutoCorrect = true;
-
-    // NB: A Cool thing is when window.localStorage is rigged to blow up
-    // if you touch it from a data: URI in Chromium.
-    try {
-      this.localStorage = localStorage || window.localStorage || new FakeLocalStorage();
-    } catch (ugh) {
-      this.localStorage = new FakeLocalStorage();
-    }
 
     this.disp = new SerialSubscription();
 
@@ -406,14 +398,10 @@ export default class SpellCheckHandler {
    * @private
    */
   async loadDictionaryForLanguageWithAlternatives(langCode, cacheOnly=false) {
-    const localStorageKey =  'electronSpellchecker_alternatesTable';
-
     this.fallbackLocaleTable = this.fallbackLocaleTable || require('./fallback-locales');
     let lang = langCode.substring(0, 2);
 
     let alternatives = [langCode, await this.getLikelyLocaleForLanguage(lang), this.fallbackLocaleTable[lang]];
-    let alternatesTable = JSON.parse(this.localStorage.getItem(localStorageKey) || '{}');
-
     if (langCode in alternatesTable) {
       try {
         return {
@@ -421,9 +409,8 @@ export default class SpellCheckHandler {
           dictionary: await this.dictionarySync.loadDictionaryForLanguage(alternatesTable[langCode])
         };
       } catch (e) {
-        // If we fail to load a saved alternate, this is an indicator that our
-        // data is garbage and we should throw it out entirely.
-        this.localStorage.setItem(localStorageKey, '{}');
+        d(`Failed to load language ${langCode}, altTable=${alternatesTable[langCode]}`);
+        delete alternatesTable[langCode];
       }
     }
 
@@ -435,7 +422,6 @@ export default class SpellCheckHandler {
           .map((d) => ({language: l, dictionary: d}))
           .do(({language}) => {
             alternatesTable[langCode] = language;
-            this.localStorage.setItem(localStorageKey, JSON.stringify(alternatesTable));
           })
           .catch(() => Observable.of(null));
       })
