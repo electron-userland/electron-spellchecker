@@ -99,7 +99,7 @@ export default class ContextMenuBuilder {
     // Opening a menu blocks the renderer process, which is definitely not
     // suitable for running tests
     if (!menu) return;
-    menu.popup(remote.getCurrentWindow());
+    menu.popup(remote.getCurrentWindow(), { async: true });
   }
 
   /**
