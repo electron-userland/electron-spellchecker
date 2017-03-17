@@ -1,7 +1,6 @@
 const cld = require('@paulcbetts/cld');
 
 export function detect(text) {
-
   return new Promise((res,rej) => {
     cld.detect(text, (err, result) => {
       if (err) { rej(new Error(err.message)); return; }
