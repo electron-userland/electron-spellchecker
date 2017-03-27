@@ -129,8 +129,7 @@ export default class SpellCheckHandler {
     this.spellCheckInvoked = new Subject();
     this.spellingErrorOccurred = new Subject();
     this.isMisspelledCache = new LRU({
-      max: 512,
-      maxAge: 8 * 1000
+      max: 512, maxAge: 4 * 1000
     });
 
     this.scheduler = scheduler;
