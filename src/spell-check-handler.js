@@ -128,7 +128,9 @@ export default class SpellCheckHandler {
     this.currentSpellcheckerChanged = new Subject();
     this.spellCheckInvoked = new Subject();
     this.spellingErrorOccurred = new Subject();
-    this.isMisspelledCache = new LRU({ max: 512 });
+    this.isMisspelledCache = new LRU({
+      max: 512, maxAge: 4 * 1000
+    });
 
     this.scheduler = scheduler;
     this.shouldAutoCorrect = true;
@@ -456,7 +458,7 @@ export default class SpellCheckHandler {
    */
   isMisspelled(text) {
     let result = this.isMisspelledCache.get(text);
-    if (result !== undefined && !isMac) {
+    if (result !== undefined) {
       return result;
     }
 
@@ -489,7 +491,7 @@ export default class SpellCheckHandler {
       return this.currentSpellchecker.isMisspelled(text.toLocaleLowerCase());
     })();
 
-    if (!isMac) this.isMisspelledCache.set(text, result);
+    this.isMisspelledCache.set(text, result);
     return result;
   }
 
