@@ -1,4 +1,3 @@
-import {getInstalledKeyboardLanguages} from 'keyboard-layout';
 import {spawn} from 'spawn-rx';
 import {requireTaskPool} from 'electron-remote';
 import LRU from 'lru-cache';
@@ -572,7 +571,7 @@ export default class SpellCheckHandler {
     }
 
     if (process.platform === 'win32') {
-      localeList = getInstalledKeyboardLanguages();
+      localeList = require('keyboard-layout').getInstalledKeyboardLanguages();
     }
 
     if (isMac) {
