@@ -139,7 +139,7 @@ export default class ContextMenuBuilder {
     this.addCopy(menu, menuInfo);
     this.addPaste(menu, menuInfo);
     this.addInspectElement(menu, menuInfo);
-    this.processMenu(menu);
+    this.processMenu(menu, menuInfo);
 
     return menu;
   }
