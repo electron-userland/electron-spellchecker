@@ -53,8 +53,8 @@ export default class ContextMenuBuilder {
     } else {
       // NB: We do this because at the time a WebView is created, it doesn't
       // have a WebContents, we need to defer the call to getWebContents
-      this.getWebContents = 'webContents' in windowOrWebView ? 
-        () => windowOrWebView.webContents : 
+      this.getWebContents = 'webContents' in windowOrWebView ?
+        () => windowOrWebView.webContents :
         () => windowOrWebView.getWebContents();
     }
   }
@@ -81,7 +81,7 @@ export default class ContextMenuBuilder {
    *
    */
   setAlternateStringFormatter(stringTable) {
-    this.contextMenuStringTable = Object.assign(this.stringTable, stringTable);
+    this.stringTable = Object.assign(this.stringTable, stringTable);
   }
 
   /**
@@ -395,7 +395,7 @@ export default class ContextMenuBuilder {
    * Adds the "Inspect Element" menu item.
    */
   addInspectElement(menu, menuInfo, needsSeparator=true) {
-    let target = this.getWebContents(); 
+    let target = this.getWebContents();
     if (!this.debugMode) return menu;
     if (needsSeparator) this.addSeparator(menu);
 
