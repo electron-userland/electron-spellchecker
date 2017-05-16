@@ -169,9 +169,9 @@ export default class SpellCheckHandler {
     // is the only way to set the `automaticallyIdentifiyLanguages` property on the
     // native NSSpellchecker. Calling switchLanguage with a language will set it `false`,
     // while calling it with an empty language will set it to `true`
-    if (isMac && !!value === true) {
+    if (isMac && !!value) {
       this.switchLanguage();
-    } else if (isMac && !!value === false && this.currentSpellcheckerLanguage) {
+    } else if (isMac && !!value && this.currentSpellcheckerLanguage) {
       this.switchLanguage(this.currentSpellcheckerLanguage);
     }
   }
@@ -392,6 +392,7 @@ export default class SpellCheckHandler {
     // Set language on macOS
     if (isMac && this.currentSpellchecker) {
       d(`Setting current spellchecker to ${langCode}`);
+      this.currentSpellcheckerLanguage = langCode;
       return this.currentSpellchecker.setDictionary(langCode);
     }
 
