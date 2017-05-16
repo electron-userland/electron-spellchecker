@@ -127,13 +127,13 @@ export default class SpellCheckHandler {
     this.currentSpellcheckerChanged = new Subject();
     this.spellCheckInvoked = new Subject();
     this.spellingErrorOccurred = new Subject();
-    this.automaticallyIdentifiyLanguages = true;
     this.isMisspelledCache = new LRU({
       max: 512, maxAge: 4 * 1000
     });
 
     this.scheduler = scheduler;
     this.shouldAutoCorrect = true;
+    this._automaticallyIdentifiyLanguages = true;
 
     this.disp = new SerialSubscription();
 
@@ -149,6 +149,30 @@ export default class SpellCheckHandler {
           { spellCheck: this.handleElectronSpellCheck.bind(this) });
       }
       return;
+    }
+  }
+
+  /**
+   * Is the spellchecker trying to detect the typed language automatically?
+   */
+  get automaticallyIdentifiyLanguages() {
+    return this._automaticallyIdentifiyLanguages;
+  }
+
+  /**
+   * Is the spellchecker trying to detect the typed language automatically?
+   */
+  set automaticallyIdentifiyLanguages(value) {
+    this._automaticallyIdentifiyLanguages = !!value;
+
+    // Calling `setDictionary` on the macOS implementation of `@paulcbetts/spellchecker`
+    // is the only way to set the `automaticallyIdentifiyLanguages` property on the
+    // native NSSpellchecker. Calling switchLanguage with a language will set it `false`,
+    // while calling it with an empty language will set it to `true`
+    if (isMac && !!value === true) {
+      this.switchLanguage();
+    } else if (isMac && !!value === false && this.currentSpellcheckerLanguage) {
+      this.switchLanguage(this.currentSpellcheckerLanguage);
     }
   }
 
