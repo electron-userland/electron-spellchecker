@@ -127,6 +127,7 @@ export default class SpellCheckHandler {
     this.currentSpellcheckerChanged = new Subject();
     this.spellCheckInvoked = new Subject();
     this.spellingErrorOccurred = new Subject();
+    this.automaticallyIdentifiyLanguages = true;
     this.isMisspelledCache = new LRU({
       max: 512, maxAge: 4 * 1000
     });
@@ -241,6 +242,7 @@ export default class SpellCheckHandler {
       });
 
     let languageDetectionMatches = contentToCheck
+      .filter(() => this.automaticallyIdentifiyLanguages)
       .mergeMap((text) => {
         d(`Attempting detection, string length: ${text.length}`);
         if (text.length > 256) {
@@ -362,8 +364,14 @@ export default class SpellCheckHandler {
   async switchLanguage(langCode) {
     let actualLang;
     let dict = null;
-    if (isMac) return;
 
+    // Set language on macOS
+    if (isMac && this.currentSpellchecker) {
+      d(`Setting current spellchecker to ${langCode}`);
+      return this.currentSpellchecker.setDictionary(langCode);
+    }
+
+    // Set language on Linux & Windows (Hunspell)
     this.isMisspelledCache.reset();
 
     try {
