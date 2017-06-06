@@ -133,7 +133,7 @@ export default class SpellCheckHandler {
 
     this.scheduler = scheduler;
     this.shouldAutoCorrect = true;
-    this._automaticallyIdentifiyLanguages = true;
+    this._automaticallyIdentifyLanguages = true;
 
     this.disp = new SerialSubscription();
 
@@ -155,18 +155,18 @@ export default class SpellCheckHandler {
   /**
    * Is the spellchecker trying to detect the typed language automatically?
    */
-  get automaticallyIdentifiyLanguages() {
-    return this._automaticallyIdentifiyLanguages;
+  get automaticallyIdentifyLanguages() {
+    return this._automaticallyIdentifyLanguages;
   }
 
   /**
    * Is the spellchecker trying to detect the typed language automatically?
    */
-  set automaticallyIdentifiyLanguages(value) {
-    this._automaticallyIdentifiyLanguages = !!value;
+  set automaticallyIdentifyLanguages(value) {
+    this._automaticallyIdentifyLanguages = !!value;
 
     // Calling `setDictionary` on the macOS implementation of `@paulcbetts/spellchecker`
-    // is the only way to set the `automaticallyIdentifiyLanguages` property on the
+    // is the only way to set the `automaticallyIdentifyLanguages` property on the
     // native NSSpellchecker. Calling switchLanguage with a language will set it `false`,
     // while calling it with an empty language will set it to `true`
     if (isMac && !!value) {
@@ -266,7 +266,7 @@ export default class SpellCheckHandler {
       });
 
     let languageDetectionMatches = contentToCheck
-      .filter(() => this.automaticallyIdentifiyLanguages)
+      .filter(() => this.automaticallyIdentifyLanguages)
       .mergeMap((text) => {
         d(`Attempting detection, string length: ${text.length}`);
         if (text.length > 256) {
