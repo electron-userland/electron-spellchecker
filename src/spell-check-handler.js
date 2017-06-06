@@ -133,6 +133,7 @@ export default class SpellCheckHandler {
 
     this.scheduler = scheduler;
     this.shouldAutoCorrect = true;
+    this._automaticallyIdentifyLanguages = true;
 
     this.disp = new SerialSubscription();
 
@@ -148,6 +149,30 @@ export default class SpellCheckHandler {
           { spellCheck: this.handleElectronSpellCheck.bind(this) });
       }
       return;
+    }
+  }
+
+  /**
+   * Is the spellchecker trying to detect the typed language automatically?
+   */
+  get automaticallyIdentifyLanguages() {
+    return this._automaticallyIdentifyLanguages;
+  }
+
+  /**
+   * Is the spellchecker trying to detect the typed language automatically?
+   */
+  set automaticallyIdentifyLanguages(value) {
+    this._automaticallyIdentifyLanguages = !!value;
+
+    // Calling `setDictionary` on the macOS implementation of `@paulcbetts/spellchecker`
+    // is the only way to set the `automaticallyIdentifyLanguages` property on the
+    // native NSSpellchecker. Calling switchLanguage with a language will set it `false`,
+    // while calling it with an empty language will set it to `true`
+    if (isMac && !!value) {
+      this.switchLanguage();
+    } else if (isMac && !!value && this.currentSpellcheckerLanguage) {
+      this.switchLanguage(this.currentSpellcheckerLanguage);
     }
   }
 
@@ -241,6 +266,7 @@ export default class SpellCheckHandler {
       });
 
     let languageDetectionMatches = contentToCheck
+      .filter(() => this.automaticallyIdentifyLanguages)
       .mergeMap((text) => {
         d(`Attempting detection, string length: ${text.length}`);
         if (text.length > 256) {
@@ -362,8 +388,15 @@ export default class SpellCheckHandler {
   async switchLanguage(langCode) {
     let actualLang;
     let dict = null;
-    if (isMac) return;
 
+    // Set language on macOS
+    if (isMac && this.currentSpellchecker) {
+      d(`Setting current spellchecker to ${langCode}`);
+      this.currentSpellcheckerLanguage = langCode;
+      return this.currentSpellchecker.setDictionary(langCode);
+    }
+
+    // Set language on Linux & Windows (Hunspell)
     this.isMisspelledCache.reset();
 
     try {
