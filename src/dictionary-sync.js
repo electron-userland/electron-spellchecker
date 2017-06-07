@@ -100,6 +100,12 @@ export default class DictionarySync {
       }
     }
 
+    //chromium's hunspell-ko dict is available non-uniformed url (https://src.chromium.org/viewvc/chrome?revision=173254&view=revision)
+    //let spellchecker plays with correct langCode but only asks to form url to align with it
+    if (lang.toLowerCase() === 'ko-kr') {
+      lang = 'ko';
+    }
+
     let url = getURLForHunspellDictionary(lang);
     d(`Actually downloading ${url}`);
     await downloadFileOrUrl(url, target);
