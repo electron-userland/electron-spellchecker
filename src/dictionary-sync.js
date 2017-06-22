@@ -11,6 +11,7 @@ import 'rxjs/add/operator/toPromise';
 
 import {fs} from './promisify';
 import {normalizeLanguageCode} from './utility';
+import {downloadURL} from './download-url';
 
 let getURLForHunspellDictionary;
 let d = require('debug')('electron-spellchecker:dictionary-sync');
@@ -18,9 +19,6 @@ let d = require('debug')('electron-spellchecker:dictionary-sync');
 const app = process.type === 'renderer' ?
   require('electron').remote.app :
   require('electron').app;
-
-const {downloadFileOrUrl} =
-  require('electron-remote').requireTaskPool(require.resolve('electron-remote/remote-ajax'));
 
 /**
  * DictioanrySync handles downloading and saving Hunspell dictionaries. Pass it
@@ -102,7 +100,7 @@ export default class DictionarySync {
 
     let url = getURLForHunspellDictionary(lang);
     d(`Actually downloading ${url}`);
-    await downloadFileOrUrl(url, target);
+    await downloadURL(url, target);
 
     if (cacheOnly) return target;
 
