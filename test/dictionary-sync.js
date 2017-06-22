@@ -11,13 +11,14 @@ const d = require('debug')('electron-spellchecker-test:dictionary-sync');
 let testCount = 0;
 
 describe('The Dictionary Sync class', function() {
+  if (process.platform === 'darwin') return;
+
   beforeEach(function() {
     this.tempCacheDir = path.join(__dirname, `__dict_sync_${testCount++}`);
     this.fixture = new DictionarySync(this.tempCacheDir);
   });
 
   afterEach(function() {
-    //console.log(this.tempCacheDir);
     rimraf.sync(this.tempCacheDir);
   });
 
