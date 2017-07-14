@@ -1,6 +1,6 @@
 import pify from 'pify';
 
-module.exports = ['fs', 'mkdirp', 'rimraf'].reduce((acc, x) => {
+module.exports = ['fs', 'mkdirp'].reduce((acc, x) => {
   acc[x] = pify(require(x));
   return acc;
 }, {});
