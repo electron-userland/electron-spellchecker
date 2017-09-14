@@ -29,8 +29,8 @@
   "main": "lib/index.js",
   "homepage": "https://github.com/paulcbetts/electron-spellchecker",
   "dependencies": {
-    "@paulcbetts/cld": "^2.4.6",
-    "@paulcbetts/spellchecker": "^4.0.5",
+    "cld": "^2.4.7",
+    "spellchecker": "^3.4.3",
     "bcp47": "^1.1.2",
     "debug": "^2.6.3",
     "electron-remote": "^1.1.1",
