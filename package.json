@@ -30,7 +30,7 @@
   "homepage": "https://github.com/paulcbetts/electron-spellchecker",
   "dependencies": {
     "@paulcbetts/cld": "^2.4.6",
-    "@paulcbetts/spellchecker": "^4.0.5",
+    "@paulcbetts/spellchecker": "^4.0.6",
     "bcp47": "^1.1.2",
     "debug": "^2.6.3",
     "electron-remote": "^1.1.1",
