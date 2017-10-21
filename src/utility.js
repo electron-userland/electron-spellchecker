@@ -2,8 +2,6 @@ import { parse } from 'bcp47';
 import {fs} from './promisify';
 import path from 'path';
 
-const winUserWordsPath = path.join(this.dictionarySync.cacheDir, 'winUserWords.json')
-
 /**
  * Normalizes language codes by case and separator. Unfortunately, different
  * platforms have slightly different standards for language codes (i.e. 'en_US' vs
@@ -43,11 +41,44 @@ export function matchesWord(string) {
   return string.match(regex);
 }
 
-export function parseWinUserWords() {
-  if (!fs.existsSync(winUserWordsPath)) writeWinUserWords({});
-  return JSON.parse(fs.readFileSync(winUserWordsPath));
+/**
+ * Helper function to get cache directory path
+ *
+ * @return {String}        Cache directory path
+ */
+export function getCacheDirPath() {
+  const app = process.type === 'renderer' ?
+  require('electron').remote.app :
+  require('electron').app;
+  return path.join(app.getPath('userData'), 'dictionaries');
 }
 
+/**
+ * Helper function to get winUserWords.json path
+ *
+ * @return {String}        winUserWords.json directory path
+ */
+function getWinUserWordsPath() {
+  return path.join(getCacheDirPath(), 'winUserWords.json')
+}
+
+/**
+ * Create winUserWords.json if it doesn't exist and return JSON
+ * regardless
+ *
+ * @return {Object}        winUserWords object
+ */
+export function parseWinUserWords() {
+  if (!fs.existsSync(getWinUserWordsPath())) writeWinUserWords({});
+  return JSON.parse(fs.readFileSync(getWinUserWordsPath()));
+}
+
+/**
+ * Add new word to winUserWords.json
+ *
+ * @param  {String}        The word to add
+ * @return {Object}        Updated winUserWords object
+ */
 export function addWinUserWord(word) {
   let newWord = {};
   newWord[word] = true;
@@ -57,6 +88,12 @@ export function addWinUserWord(word) {
   return updatedWordMap;
 }
 
+/**
+ * Write object to winUserWords.json
+ *
+ * @param  {Object}        Full object to write to json
+ * @return {Void}
+ */
 function writeWinUserWords(wordMap) {
-  fs.writeFileSync(winUserWordsPath, JSON.stringify(wordMap))
+  fs.writeFileSync(getWinUserWordsPath(), JSON.stringify(wordMap))
 }
