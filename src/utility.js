@@ -76,12 +76,12 @@ export function parseWinUserWords() {
 /**
  * Add new word to winUserWords.json
  *
- * @param  {String}        The word to add
+ * @param  {String}        The word to add, to lower case
  * @return {Object}        Updated winUserWords object
  */
 export function addWinUserWord(word) {
   let newWord = {};
-  newWord[word] = true;
+  newWord[word.toLocaleLowerCase()] = true;
   let currentWordMap = parseWinUserWords();
   let updatedWordMap = Object.assign(currentWordMap, newWord);
   writeWinUserWords(updatedWordMap);

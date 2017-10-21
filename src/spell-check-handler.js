@@ -497,7 +497,7 @@ export default class SpellCheckHandler {
     }
 
     result = (() => {
-      if (contractionMap[text.toLocaleLowerCase()]) {
+      if (contractionMap[text.toLocaleLowerCase()] || this.winUserWords[text.toLocaleLowerCase()]) {
         return false;
       }
 
