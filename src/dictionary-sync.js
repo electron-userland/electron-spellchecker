@@ -1,4 +1,5 @@
 import path from 'path';
+import mkdirp from 'mkdirp';
 
 import {Observable} from 'rxjs/Observable';
 
@@ -34,6 +35,7 @@ export default class DictionarySync {
     getURLForHunspellDictionary = require('./node-spellchecker').getURLForHunspellDictionary;
 
     this.cacheDir = cacheDir || getCacheDirPath();
+    mkdirp.sync(cacheDirPath);
   }
 
   /**

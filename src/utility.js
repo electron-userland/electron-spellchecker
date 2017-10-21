@@ -1,8 +1,9 @@
 import { parse } from 'bcp47';
 import {fs} from './promisify';
 import path from 'path';
-import mkdirp from 'mkdirp';
 import {remote, app} from 'electron';
+
+const trueApp = process.type === 'renderer' ? remote.app : app;
 
 /**
  * Normalizes language codes by case and separator. Unfortunately, different
@@ -49,10 +50,7 @@ export function matchesWord(string) {
  * @return {String}        Cache directory path
  */
 export function getCacheDirPath() {
-  const trueApp = process.type === 'renderer' ? remote.app : app;
-  let cacheDirPath = path.join(trueApp.getPath('userData'), 'dictionaries');
-  if(!fs.existsSync(cacheDirPath)) mkdirp.sync(cacheDirPath);
-  return cacheDirPath;
+  return path.join(trueApp.getPath('userData'), 'dictionaries');
 }
 
 /**
