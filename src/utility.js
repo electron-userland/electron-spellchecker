@@ -1,5 +1,8 @@
 import { parse } from 'bcp47';
 import {fs} from './promisify';
+import path from 'path';
+
+const winUserWordsPath = path.join(this.dictionarySync.cacheDir, 'winUserWords.json')
 
 /**
  * Normalizes language codes by case and separator. Unfortunately, different
@@ -40,7 +43,20 @@ export function matchesWord(string) {
   return string.match(regex);
 }
 
-export function parseWinUserWords(path) {
-  if (!fs.existsSync(path)) fs.writeFileSync(path, "{}");
-  return JSON.parse(fs.readFileSync(this.winUserWordsPath))
+export function parseWinUserWords() {
+  if (!fs.existsSync(winUserWordsPath)) writeWinUserWords({});
+  return JSON.parse(fs.readFileSync(winUserWordsPath));
+}
+
+export function addWinUserWord(word) {
+  let newWord = {};
+  newWord[word] = true;
+  let currentWordMap = parseWinUserWords();
+  let updatedWordMap = Object.assign(currentWordMap, newWord);
+  writeWinUserWords(updatedWordMap);
+  return updatedWordMap;
+}
+
+function writeWinUserWords(wordMap) {
+  fs.writeFileSync(winUserWordsPath, JSON.stringify(wordMap))
 }
