@@ -32,6 +32,8 @@ import './custom-operators';
 
 import DictionarySync from './dictionary-sync';
 import {normalizeLanguageCode} from './utility';
+import path from 'path';
+import {fs} from './promisify';
 
 let Spellchecker;
 
@@ -150,6 +152,10 @@ export default class SpellCheckHandler {
       }
       return;
     }
+
+    this.winUserWordsPath = path.join(this.dictionarySync.cacheDir, 'winUserWords.json');
+    if (!fs.existsSync(this.winUserWordsPath)) fs.writeFileSync(this.winUserWordsPath, "{}");
+    this.winUserWords = fs.readFileSync(this.winUserWordsPath);
   }
 
   /**
