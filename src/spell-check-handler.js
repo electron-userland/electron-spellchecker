@@ -32,7 +32,6 @@ import './custom-operators';
 
 import DictionarySync from './dictionary-sync';
 import {normalizeLanguageCode, parseWinUserWords} from './utility';
-import path from 'path';
 
 let Spellchecker;
 
@@ -152,7 +151,7 @@ export default class SpellCheckHandler {
       return;
     }
 
-    this.winUserWords = parseWinUserWords(path.join(this.dictionarySync.cacheDir, 'winUserWords.json'));
+    this.winUserWords = parseWinUserWords();
   }
 
   /**
