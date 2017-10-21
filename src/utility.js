@@ -1,6 +1,7 @@
 import { parse } from 'bcp47';
 import {fs} from './promisify';
 import path from 'path';
+import mkdirp from 'mkdirp';
 
 /**
  * Normalizes language codes by case and separator. Unfortunately, different
@@ -50,7 +51,9 @@ export function getCacheDirPath() {
   const app = process.type === 'renderer' ?
   require('electron').remote.app :
   require('electron').app;
-  return path.join(app.getPath('userData'), 'dictionaries');
+  let cacheDirPath = path.join(app.getPath('userData'), 'dictionaries');
+  if(!fs.existsSync(cacheDirPath)) mkdirp.sync(cacheDirPath);
+  return cacheDirPath;
 }
 
 /**

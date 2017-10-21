@@ -1,5 +1,4 @@
 import path from 'path';
-import mkdirp from 'mkdirp';
 
 import {Observable} from 'rxjs/Observable';
 
@@ -19,7 +18,7 @@ const {downloadFileOrUrl} =
   require('electron-remote').requireTaskPool(require.resolve('electron-remote/remote-ajax'));
 
 /**
- * DictioanrySync handles downloading and saving Hunspell dictionaries. Pass it
+ * DictionarySync handles downloading and saving Hunspell dictionaries. Pass it
  * to {{SpellCheckHandler}} to configure a custom cache directory.
  */
 export default class DictionarySync {
@@ -35,7 +34,6 @@ export default class DictionarySync {
     getURLForHunspellDictionary = require('./node-spellchecker').getURLForHunspellDictionary;
 
     this.cacheDir = cacheDir || getCacheDirPath();
-    mkdirp.sync(this.cacheDir);
   }
 
   /**
