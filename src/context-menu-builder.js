@@ -231,24 +231,7 @@ export default class ContextMenuBuilder {
     if (!this.spellCheckHandler.currentSpellchecker) {
       return menu;
     }
-
-    // Ensure that we have valid corrections for that word
-    let corrections = await this.spellCheckHandler.getCorrectionsForMisspelling(menuInfo.misspelledWord);
-    if (!corrections || !corrections.length) {
-      return menu;
-    }
-
-    corrections.forEach((correction) => {
-      let item = new MenuItem({
-        label: correction,
-        click: () => target.replaceMisspelling(correction)
-      });
-
-      menu.append(item);
-    });
-
-    this.addSeparator(menu);
-
+    
     // Gate learning words based on OS support. At some point we can manage a
     // custom dictionary for Hunspell, but today is not that day
     if (process.platform === 'darwin') {
@@ -269,6 +252,23 @@ export default class ContextMenuBuilder {
 
       menu.append(learnWord);
     }
+
+    this.addSeparator(menu);
+
+    // Ensure that we have valid corrections for that word
+    let corrections = await this.spellCheckHandler.getCorrectionsForMisspelling(menuInfo.misspelledWord);
+    if (!corrections || !corrections.length) {
+      return menu;
+    }
+
+    corrections.forEach((correction) => {
+      let item = new MenuItem({
+        label: correction,
+        click: () => target.replaceMisspelling(correction)
+      });
+
+      menu.append(item);
+    });
 
     return menu;
   }
