@@ -35,7 +35,7 @@ export default class DictionarySync {
     getURLForHunspellDictionary = require('./node-spellchecker').getURLForHunspellDictionary;
 
     this.cacheDir = cacheDir || getCacheDirPath();
-    mkdirp.sync(cacheDirPath);
+    mkdirp.sync(this.cacheDir);
   }
 
   /**
