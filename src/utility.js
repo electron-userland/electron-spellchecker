@@ -59,7 +59,7 @@ export function getCacheDirPath() {
  * @return {String}        winUserWords.json directory path
  */
 function getWinUserWordsPath() {
-  return path.join(getCacheDirPath(), 'winUserWords.json')
+  return path.join(getCacheDirPath(), 'winUserWords.json');
 }
 
 /**
@@ -92,5 +92,5 @@ export function addWinUserWord(word) {
  * @param  {Object}        Full object to write to json
  */
 function writeWinUserWords(wordMap) {
-  fs.writeFileSync(getWinUserWordsPath(), JSON.stringify(wordMap))
+  fs.writeFileSync(getWinUserWordsPath(), JSON.stringify(wordMap));
 }
