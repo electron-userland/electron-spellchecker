@@ -6,7 +6,7 @@
     "doc": "esdoc -c ./esdoc.json",
     "compile": "babel -d lib/ src/",
     "prepublish": "npm run compile",
-    "prepare": "npm run compile",
+    "prepublishOnly": "npm run compile",
     "test-renderer": "electron-mocha --renderer --require ./test/support.js ./test",
     "test-browser": "electron-mocha --browser --require ./test/support.js ./test",
     "test": "npm run test-renderer",
