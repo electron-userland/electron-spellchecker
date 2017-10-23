@@ -5,7 +5,6 @@
   "scripts": {
     "doc": "esdoc -c ./esdoc.json",
     "compile": "babel -d lib/ src/",
-    "prepare": "npm run compile",
     "prepublish": "npm run compile",
     "test-renderer": "electron-mocha --renderer --require ./test/support.js ./test",
     "test-browser": "electron-mocha --browser --require ./test/support.js ./test",
