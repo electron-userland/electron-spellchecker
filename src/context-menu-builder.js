@@ -242,9 +242,8 @@ export default class ContextMenuBuilder {
         });
   
         menu.append(item);
-        
-        this.addSeparator(menu);
       });
+      this.addSeparator(menu);
     }
     
     // Gate learning words based on OS support.
