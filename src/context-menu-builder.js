@@ -1,5 +1,5 @@
 import {clipboard, nativeImage, remote, shell} from 'electron';
-import {truncateString, matchesWord} from './utility';
+import {truncateString, matchesWord, addWinUserWord} from './utility';
 
 const {Menu, MenuItem} = remote;
 
@@ -234,41 +234,42 @@ export default class ContextMenuBuilder {
 
     // Ensure that we have valid corrections for that word
     let corrections = await this.spellCheckHandler.getCorrectionsForMisspelling(menuInfo.misspelledWord);
-    if (!corrections || !corrections.length) {
-      return menu;
-    }
-
-    corrections.forEach((correction) => {
-      let item = new MenuItem({
-        label: correction,
-        click: () => target.replaceMisspelling(correction)
+    if (corrections && corrections.length) {
+      corrections.forEach((correction) => {
+        let item = new MenuItem({
+          label: correction,
+          click: () => target.replaceMisspelling(correction)
+        });
+  
+        menu.append(item);
       });
+      this.addSeparator(menu);
+    }
+    
+    // Gate learning words based on OS support.
+    
+    let learnWord = new MenuItem({
+      label: this.stringTable.addToDictionary(),
+      click: async () => {
+        // NB: This is a gross fix to invalidate the spelling underline,
+        // refer to https://github.com/tinyspeck/slack-winssb/issues/354
+        target.replaceMisspelling(menuInfo.selectionText);
 
-      menu.append(item);
+        try {
+          if (process.platform === 'darwin') {
+            await this.spellCheckHandler.currentSpellchecker.add(menuInfo.misspelledWord);
+          } else {
+            this.spellCheckHandler.winUserWords = await addWinUserWord(menuInfo.misspelledWord);
+          }
+        } catch (e) {
+          d(`Failed to add entry to dictionary: ${e.message}`);
+        }
+      }
     });
 
+    menu.append(learnWord);
+
     this.addSeparator(menu);
-
-    // Gate learning words based on OS support. At some point we can manage a
-    // custom dictionary for Hunspell, but today is not that day
-    if (process.platform === 'darwin') {
-      let learnWord = new MenuItem({
-        label: this.stringTable.addToDictionary(),
-        click: async () => {
-          // NB: This is a gross fix to invalidate the spelling underline,
-          // refer to https://github.com/tinyspeck/slack-winssb/issues/354
-          target.replaceMisspelling(menuInfo.selection);
-
-          try {
-            await this.spellChecker.add(menuInfo.misspelledWord);
-          } catch (e) {
-            d(`Failed to add entry to dictionary: ${e.message}`);
-          }
-        }
-      });
-
-      menu.append(learnWord);
-    }
 
     return menu;
   }

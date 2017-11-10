@@ -31,7 +31,7 @@ import 'rxjs/add/operator/toPromise';
 import './custom-operators';
 
 import DictionarySync from './dictionary-sync';
-import {normalizeLanguageCode} from './utility';
+import {normalizeLanguageCode, parseWinUserWords} from './utility';
 
 let Spellchecker;
 
@@ -150,6 +150,8 @@ export default class SpellCheckHandler {
       }
       return;
     }
+
+    this.winUserWords = parseWinUserWords();
   }
 
   /**
@@ -495,9 +497,9 @@ export default class SpellCheckHandler {
     }
 
     result = (() => {
-      if (contractionMap[text.toLocaleLowerCase()]) {
-        return false;
-      }
+      if (contractionMap[text.toLocaleLowerCase()]) return false;
+
+      if(this.winUserWords && this.winUserWords[text.toLocaleLowerCase()]) return false;
 
       if (!this.currentSpellchecker) return false;
 

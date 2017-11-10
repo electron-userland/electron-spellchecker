@@ -10,20 +10,16 @@ import 'rxjs/add/operator/reduce';
 import 'rxjs/add/operator/toPromise';
 
 import {fs} from './promisify';
-import {normalizeLanguageCode} from './utility';
+import {normalizeLanguageCode, getCacheDirPath} from './utility';
 
 let getURLForHunspellDictionary;
 let d = require('debug')('electron-spellchecker:dictionary-sync');
-
-const app = process.type === 'renderer' ?
-  require('electron').remote.app :
-  require('electron').app;
 
 const {downloadFileOrUrl} =
   require('electron-remote').requireTaskPool(require.resolve('electron-remote/remote-ajax'));
 
 /**
- * DictioanrySync handles downloading and saving Hunspell dictionaries. Pass it
+ * DictionarySync handles downloading and saving Hunspell dictionaries. Pass it
  * to {{SpellCheckHandler}} to configure a custom cache directory.
  */
 export default class DictionarySync {
@@ -38,7 +34,7 @@ export default class DictionarySync {
     // NB: Require here so that consumers can handle native module exceptions.
     getURLForHunspellDictionary = require('./node-spellchecker').getURLForHunspellDictionary;
 
-    this.cacheDir = cacheDir || path.join(app.getPath('userData'), 'dictionaries');
+    this.cacheDir = cacheDir || getCacheDirPath();
     mkdirp.sync(this.cacheDir);
   }
 
