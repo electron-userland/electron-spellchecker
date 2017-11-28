@@ -257,10 +257,10 @@ export default class ContextMenuBuilder {
         click: async () => {
           // NB: This is a gross fix to invalidate the spelling underline,
           // refer to https://github.com/tinyspeck/slack-winssb/issues/354
-          target.replaceMisspelling(menuInfo.selection);
+          target.replaceMisspelling(menuInfo.selectionText);
 
           try {
-            await this.spellChecker.add(menuInfo.misspelledWord);
+            await this.spellCheckHandler.addToDictionary(menuInfo.misspelledWord);
           } catch (e) {
             d(`Failed to add entry to dictionary: ${e.message}`);
           }
