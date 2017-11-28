@@ -234,20 +234,19 @@ export default class ContextMenuBuilder {
 
     // Ensure that we have valid corrections for that word
     let corrections = await this.spellCheckHandler.getCorrectionsForMisspelling(menuInfo.misspelledWord);
-    if (!corrections || !corrections.length) {
-      return menu;
-    }
 
-    corrections.forEach((correction) => {
-      let item = new MenuItem({
-        label: correction,
-        click: () => target.replaceMisspelling(correction)
+    if (corrections && corrections.length) {
+      corrections.forEach((correction) => {
+        let item = new MenuItem({
+          label: correction,
+          click: () => target.replaceMisspelling(correction)
+        });
+
+        menu.append(item);
       });
 
-      menu.append(item);
-    });
-
-    this.addSeparator(menu);
+      this.addSeparator(menu);
+    }
 
     // Gate learning words based on OS support. At some point we can manage a
     // custom dictionary for Hunspell, but today is not that day
