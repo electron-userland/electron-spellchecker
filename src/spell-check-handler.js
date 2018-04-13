@@ -588,9 +588,9 @@ export default class SpellCheckHandler {
 
     if (process.platform === 'linux') {
       let locales = await spawn('locale', ['-a'])
-        .catch(() => Observable.of(null))
         .reduce((acc,x) => { acc.push(...x.split('\n')); return acc; }, [])
-        .toPromise();
+        .toPromise()
+        .catch(() => []);
 
       d(`Raw Locale list: ${JSON.stringify(locales)}`);
 
