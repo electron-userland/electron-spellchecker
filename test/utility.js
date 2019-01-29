@@ -1,5 +1,5 @@
-import './support';
-import {normalizeLanguageCode, matchesWord} from '../src/utility';
+require('./support');
+const {normalizeLanguageCode, matchesWord} = require('../src/utility');
 
 describe('The Utility file', function() {
 

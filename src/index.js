@@ -1,8 +1,8 @@
-import ContextMenuBuilder from './context-menu-builder';
-import ContextMenuListener from './context-menu-listener';
-import DictionarySync from './dictionary-sync';
-import SpellCheckHandler from './spell-check-handler';
-import SpellChecker from './node-spellchecker';
+const ContextMenuBuilder = require('./context-menu-builder');
+const ContextMenuListener = require('./context-menu-listener');
+const DictionarySync = require('./dictionary-sync');
+const SpellCheckHandler = require('./spell-check-handler');
+const SpellChecker = require('./node-spellchecker');
 
 /**
  * Overrides the default logging function (the `debug` library) with another

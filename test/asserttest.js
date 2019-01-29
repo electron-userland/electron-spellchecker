@@ -1,4 +1,4 @@
-import './support';
+require('./support');
 
 function delay(ms) {
   return new Promise((resolve) => {

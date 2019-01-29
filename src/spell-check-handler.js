@@ -1,37 +1,37 @@
-import {spawn} from 'spawn-rx';
-import {requireTaskPool} from 'electron-remote';
-import LRU from 'lru-cache';
+const {spawn} = require('spawn-rx');
+const {requireTaskPool} = require('electron-remote');
+const LRU = require('lru-cache');
 
-import {Subscription} from 'rxjs/Subscription';
-import {Observable} from 'rxjs/Observable';
-import {Subject} from 'rxjs/Subject';
-import SerialSubscription from 'rxjs-serial-subscription';
+const {Subscription} = require('rxjs/Subscription');
+const {Observable} = require('rxjs/Observable');
+const {Subject} = require('rxjs/Subject');
+const SerialSubscription = require('rxjs-serial-subscription').default;
 
-import 'rxjs/add/observable/defer';
-import 'rxjs/add/observable/empty';
-import 'rxjs/add/observable/fromEvent';
-import 'rxjs/add/observable/fromPromise';
-import 'rxjs/add/observable/of';
+require('rxjs/add/observable/defer');
+require('rxjs/add/observable/empty');
+require('rxjs/add/observable/fromEvent');
+require('rxjs/add/observable/fromPromise');
+require('rxjs/add/observable/of');
 
-import 'rxjs/add/operator/catch';
-import 'rxjs/add/operator/concat';
-import 'rxjs/add/operator/concatMap';
-import 'rxjs/add/operator/do';
-import 'rxjs/add/operator/filter';
-import 'rxjs/add/operator/mergeMap';
-import 'rxjs/add/operator/merge';
-import 'rxjs/add/operator/observeOn';
-import 'rxjs/add/operator/reduce';
-import 'rxjs/add/operator/startWith';
-import 'rxjs/add/operator/take';
-import 'rxjs/add/operator/takeUntil';
-import 'rxjs/add/operator/throttle';
-import 'rxjs/add/operator/toPromise';
+require('rxjs/add/operator/catch');
+require('rxjs/add/operator/concat');
+require('rxjs/add/operator/concatMap');
+require('rxjs/add/operator/do');
+require('rxjs/add/operator/filter');
+require('rxjs/add/operator/mergeMap');
+require('rxjs/add/operator/merge');
+require('rxjs/add/operator/observeOn');
+require('rxjs/add/operator/reduce');
+require('rxjs/add/operator/startWith');
+require('rxjs/add/operator/take');
+require('rxjs/add/operator/takeUntil');
+require('rxjs/add/operator/throttle');
+require('rxjs/add/operator/toPromise');
 
-import './custom-operators';
+require('./custom-operators');
 
-import DictionarySync from './dictionary-sync';
-import {normalizeLanguageCode} from './utility';
+const DictionarySync = require('./dictionary-sync');
+const {normalizeLanguageCode} = require('./utility');
 
 let Spellchecker;
 
@@ -104,7 +104,7 @@ function fromEventCapture(element, name) {
  * would be a great sample, or in the case of Slack, the existing channel messages
  * are used as the sample text.
  */
-export default class SpellCheckHandler {
+module.exports = class SpellCheckHandler {
   /**
    * Constructs a SpellCheckHandler
    *
@@ -165,7 +165,7 @@ export default class SpellCheckHandler {
   set automaticallyIdentifyLanguages(value) {
     this._automaticallyIdentifyLanguages = !!value;
 
-    // Calling `setDictionary` on the macOS implementation of `@paulcbetts/spellchecker`
+    // Calling `setDictionary` on the macOS implementation of `@nornagon/spellchecker`
     // is the only way to set the `automaticallyIdentifyLanguages` property on the
     // native NSSpellchecker. Calling switchLanguage with a language will set it `false`,
     // while calling it with an empty language will set it to `true`

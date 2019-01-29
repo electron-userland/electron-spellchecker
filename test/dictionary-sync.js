@@ -1,28 +1,33 @@
-import './support';
+require('./support');
 
-import fs from 'fs';
-import path from 'path';
-import rimraf from 'rimraf';
+const fs = require('fs');
+const path = require('path');
+const rimraf = require('rimraf');
 
-import DictionarySync from '../src/dictionary-sync';
-
+const DictionarySync = require('../src/dictionary-sync');
 const d = require('debug')('electron-spellchecker-test:dictionary-sync');
 
 let testCount = 0;
 
 describe('The Dictionary Sync class', function() {
+  const platform = process.platform;
+
   beforeEach(function() {
     this.tempCacheDir = path.join(__dirname, `__dict_sync_${testCount++}`);
     this.fixture = new DictionarySync(this.tempCacheDir);
   });
 
   afterEach(function() {
-    //console.log(this.tempCacheDir);
+    Object.defineProperty(process, 'platform', { value: platform });
     rimraf.sync(this.tempCacheDir);
   });
 
   describe('loadDictionaryForLanguage method', function() {
     this.timeout(60*1000);
+
+    beforeEach(() => {
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+    });
 
     it('should download the German dictionary', async function() {
       let buf = await this.fixture.loadDictionaryForLanguage('de-DE');
@@ -31,7 +36,7 @@ describe('The Dictionary Sync class', function() {
       expect(buf.length > 1000).to.be.ok;
     });
 
-    it('should throw when we a language that isnt real', async function() {
+    it(`should throw when we a language that isn't real`, async function() {
       let ret = null;
       try {
         ret = await this.fixture.loadDictionaryForLanguage('zz-ZZ');

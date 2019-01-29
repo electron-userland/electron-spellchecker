@@ -1,8 +1,8 @@
-import {Observable} from 'rxjs/Observable';
+const { Observable } = require('rxjs/Observable');
 
-import 'rxjs/add/observable/timer';
-import 'rxjs/add/operator/map';
-import 'rxjs/add/operator/switch';
+require('rxjs/add/observable/timer');
+require('rxjs/add/operator/map');
+require('rxjs/add/operator/switch');
 
 const newCoolOperators = {
   guaranteedThrottle: function (time, scheduler=null) {
