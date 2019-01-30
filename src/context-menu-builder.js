@@ -96,7 +96,7 @@ export default class ContextMenuBuilder {
   async showPopupMenu(contextInfo) {
     let menu = await this.buildMenuForElement(contextInfo);
     if (!menu) return;
-    menu.popup(remote.getCurrentWindow(), { async: true });
+    menu.popup();
   }
 
   /**
