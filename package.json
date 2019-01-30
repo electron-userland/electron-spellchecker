@@ -27,7 +27,7 @@
   "main": "src/index.js",
   "homepage": "https://github.com/paulcbetts/electron-spellchecker",
   "dependencies": {
-    "@paulcbetts/cld": "^2.4.6",
+    "cld": "github:nornagon/node-cld#3fa8589a82fd1308550a1902a8e82f468bad8985",
     "@nornagon/spellchecker": "^4.0.7",
     "bcp47": "^1.1.2",
     "debug": "^4.1.1",
