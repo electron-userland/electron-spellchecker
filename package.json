@@ -32,7 +32,7 @@
     "bcp47": "^1.1.2",
     "debug": "^4.1.1",
     "electron-remote": "^1.3.0",
-    "keyboard-layout": "nornagon/keyboard-layout#6d7d8f6f6d35abc7af987709c8ec583dff05ad80",
+    "keyboard-layout": "^2.0.15",
     "lru-cache": "^5.1.1",
     "mkdirp": "^0.5.1",
     "pify": "^2.3.0",
