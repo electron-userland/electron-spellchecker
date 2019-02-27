@@ -6,7 +6,7 @@
     "doc": "esdoc -c ./esdoc.json",
     "test-renderer": "electron-mocha --renderer --require ./test/support.js ./test",
     "test-browser": "electron-mocha --browser --require ./test/support.js ./test",
-    "test": " npm run test-renderer",
+    "test": "npm run test-renderer",
     "node": "cross-env ELECTRON_RUN_AS_NODE=1 ./node_modules/electron-prebuilt-compile/node_modules/.bin/electron",
     "start": "electron ./example/main.js"
   },
