@@ -1,10 +1,10 @@
-import {remote} from 'electron';
-import { Observable } from 'rxjs/Observable';
-import { Subscription } from 'rxjs/Subscription';
-import { fromRemoteWindow } from 'electron-remote';
+const { remote } = require('electron');
+const { Observable } = require('rxjs/Observable');
+const { Subscription } = require('rxjs/Subscription');
+const { fromRemoteWindow } = require('electron-remote');
 
-import 'rxjs/add/observable/fromEvent';
-import 'rxjs/add/operator/map';
+require('rxjs/add/observable/fromEvent');
+require('rxjs/add/operator/map');
 
 let d = require('debug')('electron-spellchecker:context-menu-listener');
 
@@ -13,7 +13,7 @@ let d = require('debug')('electron-spellchecker:context-menu-listener');
  * invoke a handler function. This function usually will immediately turn around
  * and invoke {{showPopupMenu}} from {{ContextMenuBuilder}}.
  */
-export default class ContextMenuListener {
+module.exports = class ContextMenuListener {
   /**
    * Constructs a ContextMenuListener and wires up the events it needs to fire
    * the callback.
