@@ -1,4 +1,4 @@
-const cld = require('@paulcbetts/cld');
+const cld = require('@nornagon/cld');
 
 module.exports = {
   detect: function (text) {
