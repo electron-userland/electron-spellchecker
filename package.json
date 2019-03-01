@@ -12,7 +12,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/paulcbetts/electron-spellchecker"
+    "url": "https://github.com/electron-userland/electron-spellchecker"
   },
   "keywords": [
     "spelling",
@@ -22,10 +22,10 @@
   "author": "Paul Betts <paul@paulbetts.org>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/paulcbetts/electron-spellchecker/issues"
+    "url": "https://github.com/electron-userland/electron-spellchecker/issues"
   },
   "main": "src/index.js",
-  "homepage": "https://github.com/paulcbetts/electron-spellchecker",
+  "homepage": "https://github.com/electron-userland/electron-spellchecker",
   "dependencies": {
     "@nornagon/cld": "^2.4.9",
     "@nornagon/spellchecker": "^4.0.7",
@@ -48,10 +48,10 @@
     "electron-debug": "^2.1.0",
     "electron-mocha": "^6.0.4",
     "electron": "4.0.6",
-    "esdoc": "^0.4.8",
+    "esdoc": "^1.1.0",
     "esdoc-es7-plugin": "0.0.3",
     "esdoc-plugin-async-to-sync": "^0.5.0",
-    "eslint": "^3.12.2",
+    "eslint": "^5.14.1",
     "rimraf": "^2.6.3"
   }
 }
