@@ -387,7 +387,6 @@ module.exports = class SpellCheckHandler {
     let actualLang;
     let dict = null;
 
-    // Set language on Linux & Windows (Hunspell)
     this.isMisspelledCache.reset();
     
     // Set language on macOS
@@ -397,6 +396,7 @@ module.exports = class SpellCheckHandler {
       return this.currentSpellchecker.setDictionary(langCode);
     }
 
+    // Set language on Linux & Windows (Hunspell)
     try {
       const {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
       actualLang = language; dict = dictionary;
