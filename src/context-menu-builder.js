@@ -38,6 +38,7 @@ module.exports = class ContextMenuBuilder {
    * @param  {Boolean} debugMode    If true, display the "Inspect Element" menu item.
    * @param  {function} processMenu If passed, this method will be passed the menu to change
    *                                it prior to display. Signature: (menu, info) => menu
+   * @param  {String} searchEngine  Optional. Pass either 'google' (default) or 'ddg' (for DuckDuckGo)
    */
   constructor(spellCheckHandler, windowOrWebView=null, debugMode=false, processMenu=null, searchEngine='google') {
     this.spellCheckHandler = spellCheckHandler;
@@ -298,7 +299,13 @@ module.exports = class ContextMenuBuilder {
       menu.append(lookUpDefinition);
     }
 
-    let search = new MenuItem({
+    let search = new MenuItem(this.searchEngine === 'ddg' ? {
+      label: this.stringTable.searchDdg(),
+      click: () => {
+        let url = `https://duckduckgo.com/?q=${encodeURIComponent(menuInfo.selectionText)}`;
+        shell.openExternal(url);
+      }
+    } : {
       label: this.stringTable.searchGoogle(),
       click: () => {
         let url = `https://www.google.com/#q=${encodeURIComponent(menuInfo.selectionText)}`;
