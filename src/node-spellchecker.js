@@ -3,4 +3,4 @@ if (process.platform === 'win32') {
   process.env['SPELLCHECKER_PREFER_HUNSPELL'] = 1;
 }
 
-module.exports = require('@nornagon/spellchecker');
+module.exports = require('@felixrieseberg/spellchecker');
