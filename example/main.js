@@ -1,5 +1,5 @@
-import {app, BrowserWindow } from 'electron';
-import electronDebug from 'electron-debug';
+const {app, BrowserWindow } = require('electron');
+const electronDebug = require('electron-debug');
 
 let mainWindow = null;
 electronDebug({enabled: true, showDevTools: true});
