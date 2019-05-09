@@ -127,9 +127,7 @@ module.exports = class SpellCheckHandler {
     this.currentSpellcheckerChanged = new Subject();
     this.spellCheckInvoked = new Subject();
     this.spellingErrorOccurred = new Subject();
-    this.isMisspelledCache = new LRU({
-      max: 512, maxAge: 4 * 1000
-    });
+    this.isMisspelledCache = new LRU({ max: 5000 });
 
     this.scheduler = scheduler;
     this.shouldAutoCorrect = true;
@@ -389,6 +387,8 @@ module.exports = class SpellCheckHandler {
     let actualLang;
     let dict = null;
 
+    this.isMisspelledCache.reset();
+    
     // Set language on macOS
     if (isMac && this.currentSpellchecker) {
       d(`Setting current spellchecker to ${langCode}`);
@@ -397,8 +397,6 @@ module.exports = class SpellCheckHandler {
     }
 
     // Set language on Linux & Windows (Hunspell)
-    this.isMisspelledCache.reset();
-
     try {
       const {dictionary, language} = await this.loadDictionaryForLanguageWithAlternatives(langCode);
       actualLang = language; dict = dictionary;
@@ -575,6 +573,7 @@ module.exports = class SpellCheckHandler {
     if (!isMac) return;
     if (!this.currentSpellchecker) return;
 
+    this.isMisspelledCache.reset();
     this.currentSpellchecker.add(text);
   }
 
