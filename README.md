@@ -9,7 +9,7 @@ electron-spellchecker:
 * Spell checks in all of the languages that Google Chrome supports by reusing its dictionaries.
 * Automatically detects the language the user is typing in and silently switches on the fly.
 * Handles locale correctly and automatically (i.e. users who are from Australia should not be corrected for 'colour', but US English speakers should)
-* Automatically downloads and manages dictionaries in the background. 
+* Automatically downloads and manages dictionaries in the background.
 * Checks very quickly, doesn't introduce input lag which is extremely noticable
 * Only loads one Dictionary at a time which saves a significant amount of memory
 
@@ -35,6 +35,10 @@ let contextMenuListener = new ContextMenuListener((info) => {
 The spell checker will attempt to automatically check the language that the user is typing in and switch on-the fly. However, giving it an explicit hint by calling `switchLanguage`, or providing it a block of sample text via `provideHintText` will result in much better results.
 
 Sample text should be text that is reasonably likely to be in the same language as the user typing - for example, in an Email reply box, the original Email text would be a great sample, or in the case of Slack, the existing channel messages are used as the sample text.
+
+## About node-spellchecker
+
+This module uses a fork of Atom's excellent `node-spellchecker` that takes a slightly different path on Windows by using Hunspell only. You can find the source [here](https://github.com/felixrieseberg/node-spellchecker).
 
 ## Learning more
 
