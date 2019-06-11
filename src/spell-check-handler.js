@@ -140,7 +140,6 @@ module.exports = class SpellCheckHandler {
       this.currentSpellchecker = new Spellchecker();
       this.currentSpellcheckerLanguage = 'en-US';
 
-      d('DEBUG: Settings Spell Check Provider...');
       if (webFrame) {
         this.setSpellCheckProvider(webFrame);
       }
