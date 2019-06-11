@@ -465,14 +465,10 @@ module.exports = class SpellCheckHandler {
    */
   setSpellCheckProvider(webFrame) {
     if (process.versions.electron >= '5.0.0') {
-      d('DEBUG: Setting provider for Electron 5');
-      // Electron 5 and above:
       webFrame.setSpellCheckProvider(
         this.currentSpellcheckerLanguage,
         { spellCheck: this.handleElectronSpellCheck.bind(this) });
     } else {
-      d('DEBUG: Setting provider for Electron 4');
-      // Electron 4 and below:
       webFrame.setSpellCheckProvider(
         this.currentSpellcheckerLanguage,
         this.shouldAutoCorrect,
