@@ -3,7 +3,7 @@ const ContextMenuListener = require("../src/context-menu-listener");
 const ContextMenuBuilder = require("../src/context-menu-builder");
 
 window.spellCheckHandler = new SpellCheckHandler();
-window.spellCheckHandler.attachToInput();
+setTimeout(() => window.spellCheckHandler.attachToInput(), 1000);
 
 window.spellCheckHandler.provideHintText(
   "This is probably the language that you want to check in"
