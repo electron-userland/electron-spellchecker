@@ -252,9 +252,9 @@ module.exports = class SpellCheckHandler {
     }
 
     let contentToCheck = Observable.merge(
-      this.spellingErrorOccurred,
-      initialInputText,
-      possiblySwitchedCharacterSets)
+        this.spellingErrorOccurred,
+        initialInputText,
+        possiblySwitchedCharacterSets)
       .mergeMap(() => {
         if (lastInputText.length < 8) return Observable.empty();
         return Observable.of(lastInputText);
@@ -292,7 +292,7 @@ module.exports = class SpellCheckHandler {
       let prevSpellCheckLanguage;
 
       disp.add(this.currentSpellcheckerChanged
-        .startWith(true)
+          .startWith(true)
         .filter(() => this.currentSpellcheckerLanguage)
         .subscribe(() => {
           if (prevSpellCheckLanguage === this.currentSpellcheckerLanguage) return;
@@ -382,7 +382,7 @@ module.exports = class SpellCheckHandler {
     let dict = null;
 
     this.isMisspelledCache.reset();
-
+    
     // Set language on macOS
     if (isMac && this.currentSpellchecker) {
       d(`Setting current spellchecker to ${langCode}`);
@@ -443,7 +443,7 @@ module.exports = class SpellCheckHandler {
     return await Observable.of(...alternatives)
       .concatMap((l) => {
         return Observable.defer(() =>
-          Observable.fromPromise(this.dictionarySync.loadDictionaryForLanguage(l, cacheOnly)))
+            Observable.fromPromise(this.dictionarySync.loadDictionaryForLanguage(l, cacheOnly)))
           .map((d) => ({language: l, dictionary: d}))
           .do(({language}) => {
             alternatesTable[langCode] = language;
