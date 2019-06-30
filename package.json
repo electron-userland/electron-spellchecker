@@ -31,7 +31,7 @@
     "bcp47": "^1.1.2",
     "cld": "^2.5.1",
     "debug": "^4.1.1",
-    "electron-remote": "^1.3.0",
+    "electron-remote": "https://github.com/aabuhijleh/electron-remote/tarball/master",
     "keyboard-layout": "^2.0.15",
     "lru-cache": "^5.1.1",
     "mkdirp": "^0.5.1",
