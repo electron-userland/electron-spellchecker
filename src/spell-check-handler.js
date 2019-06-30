@@ -513,8 +513,8 @@ module.exports = class SpellCheckHandler {
     }
 
     this.spellCheckInvoked.next(true);
-
     misspelled.forEach(w => this.spellingErrorOccurred.next(w));
+    callback(misspelled);
   }
 
   /**
