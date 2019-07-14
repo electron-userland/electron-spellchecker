@@ -19,7 +19,10 @@
     "electron",
     "rx"
   ],
-  "author": "Paul Betts <paul@paulbetts.org>",
+  "contributors": [
+    "Anais Betts <anais@anaisbetts.org>",
+    "Felix Rieseberg <felix@felixrieseberg.com>"
+  ],
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/electron-userland/electron-spellchecker/issues"
@@ -32,7 +35,7 @@
     "bcp47": "^1.1.2",
     "cld": "^2.5.1",
     "debug": "^4.1.1",
-    "keyboard-layout": "^2.0.15",
+    "keyboard-layout": "^2.0.16",
     "lru-cache": "^5.1.1",
     "mkdirp": "^0.5.1",
     "pify": "^4.0.1",
