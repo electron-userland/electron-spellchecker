@@ -1,5 +1,5 @@
 const {spawn} = require('spawn-rx');
-const {requireTaskPool} = require('electron-remote');
+const {requireTaskPool} = require('@aabuhijleh/electron-remote');
 const LRU = require('lru-cache');
 
 const {Subscription} = require('rxjs/Subscription');

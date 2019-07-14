@@ -1,7 +1,7 @@
 const { remote } = require('electron');
 const { Observable } = require('rxjs/Observable');
 const { Subscription } = require('rxjs/Subscription');
-const { fromRemoteWindow } = require('electron-remote');
+const { fromRemoteWindow } = require('@aabuhijleh/electron-remote');
 
 require('rxjs/add/observable/fromEvent');
 require('rxjs/add/operator/map');
