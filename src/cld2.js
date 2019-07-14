@@ -1,4 +1,4 @@
-const cld = require('@nornagon/cld');
+const cld = require('cld');
 
 module.exports = {
   detect: function (text) {

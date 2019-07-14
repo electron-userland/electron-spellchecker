@@ -1,5 +1,5 @@
 const {spawn} = require('spawn-rx');
-const {requireTaskPool} = require('electron-remote');
+const {requireTaskPool} = require('@aabuhijleh/electron-remote');
 const LRU = require('lru-cache');
 
 const {Subscription} = require('rxjs/Subscription');
@@ -276,7 +276,7 @@ module.exports = class SpellCheckHandler {
       .mergeMap(async (langWithoutLocale) => {
         d(`Auto-detected language as ${langWithoutLocale}`);
         let lang = await this.getLikelyLocaleForLanguage(langWithoutLocale);
-        if (lang !== this.currentSpellcheckerLanguage) await this.switchLanguage(lang);
+        if ( (lang !== this.currentSpellcheckerLanguage) || (!this.currentSpellchecker) ) await this.switchLanguage(lang);
 
         return lang;
       })
@@ -513,8 +513,8 @@ module.exports = class SpellCheckHandler {
     }
 
     this.spellCheckInvoked.next(true);
-
     misspelled.forEach(w => this.spellingErrorOccurred.next(w));
+    callback(misspelled);
   }
 
   /**
