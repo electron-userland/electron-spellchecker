@@ -31,7 +31,7 @@
   "homepage": "https://github.com/electron-userland/electron-spellchecker",
   "dependencies": {
     "@aabuhijleh/electron-remote": "^1.4.0",
-    "@felixrieseberg/spellchecker": "^4.0.10",
+    "@felixrieseberg/spellchecker": "^4.0.12",
     "bcp47": "^1.1.2",
     "cld": "^2.5.1",
     "debug": "^4.1.1",
