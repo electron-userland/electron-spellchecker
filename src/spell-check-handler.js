@@ -166,7 +166,7 @@ module.exports = class SpellCheckHandler {
     // while calling it with an empty language will set it to `true`
     if (isMac && !!value) {
       this.switchLanguage();
-    } else if (isMac && !!value && this.currentSpellcheckerLanguage) {
+    } else if (isMac && !value && this.currentSpellcheckerLanguage) {
       this.switchLanguage(this.currentSpellcheckerLanguage);
     }
   }
