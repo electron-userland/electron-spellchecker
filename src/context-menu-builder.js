@@ -14,6 +14,7 @@ const contextMenuStringTable = {
   addToDictionary: () => `Add to Dictionary`,
   lookUpDefinition: ({word}) => `Look Up "${word}"`,
   searchGoogle: () => `Search with Google`,
+  searchDdg: () => `Search with DuckDuckGo`,
   cut: () => `Cut`,
   copy: () => `Copy`,
   paste: () => `Paste`,
@@ -37,11 +38,13 @@ module.exports = class ContextMenuBuilder {
    * @param  {Boolean} debugMode    If true, display the "Inspect Element" menu item.
    * @param  {function} processMenu If passed, this method will be passed the menu to change
    *                                it prior to display. Signature: (menu, info) => menu
+   * @param  {String} searchEngine  Optional. Pass either 'google' (default) or 'ddg' (for DuckDuckGo)
    */
-  constructor(spellCheckHandler, windowOrWebView=null, debugMode=false, processMenu=(m) => m) {
+  constructor(spellCheckHandler, windowOrWebView=null, debugMode=false, processMenu=null, searchEngine='google') {
     this.spellCheckHandler = spellCheckHandler;
     this.debugMode = debugMode;
-    this.processMenu = processMenu;
+    this.processMenu = processMenu || ((m) => m);
+    this.searchEngine = searchEngine;
     this.menu = null;
     this.stringTable = Object.assign({}, contextMenuStringTable);
 
@@ -296,7 +299,13 @@ module.exports = class ContextMenuBuilder {
       menu.append(lookUpDefinition);
     }
 
-    let search = new MenuItem({
+    let search = new MenuItem(this.searchEngine === 'ddg' ? {
+      label: this.stringTable.searchDdg(),
+      click: () => {
+        let url = `https://duckduckgo.com/?q=${encodeURIComponent(menuInfo.selectionText)}`;
+        shell.openExternal(url);
+      }
+    } : {
       label: this.stringTable.searchGoogle(),
       click: () => {
         let url = `https://www.google.com/#q=${encodeURIComponent(menuInfo.selectionText)}`;
