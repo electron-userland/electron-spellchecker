@@ -401,11 +401,11 @@ module.exports = class SpellCheckHandler {
 
     if (!dict) {
       d(`dictionary for ${langCode}_${actualLang} is not available`);
-			if (this.currentSpellcheckerLanguage !== actualLang) {
-				this.currentSpellcheckerLanguage = actualLang;
-				this.currentSpellchecker = null;
-				this.currentSpellcheckerChanged.next(true);
-			}
+      if (this.currentSpellcheckerLanguage !== actualLang) {
+        this.currentSpellcheckerLanguage = actualLang;
+        this.currentSpellchecker = null;
+        this.currentSpellcheckerChanged.next(true);
+      }
       return;
     }
 
