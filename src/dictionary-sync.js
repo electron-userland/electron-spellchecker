@@ -17,9 +17,6 @@ const app = process.type === 'renderer' ?
   require('electron').remote.app :
   require('electron').app;
 
-const {downloadFileOrUrl} =
-  require('@aabuhijleh/electron-remote').requireTaskPool(require.resolve('@aabuhijleh/electron-remote/remote-ajax'));
-
 /**
  * DictioanrySync handles downloading and saving Hunspell dictionaries. Pass it
  * to {{SpellCheckHandler}} to configure a custom cache directory.
@@ -64,9 +61,11 @@ module.exports = class DictionarySync {
    *                                      {{cacheOnly}} is False, or the path to
    *                                      the file if True.
    */
-  async loadDictionaryForLanguage(langCode, cacheOnly=false) {
+  async loadDictionaryForLanguage(langCode, cacheOnly=false, forceOnAllPlatforms=false) {
     d(`Loading dictionary for language ${langCode}`);
-    if (process.platform === 'darwin') return new Buffer([]);
+    if (process.platform === 'darwin' && forceOnAllPlatforms !== true) {
+      return new Buffer([]);
+    }
 
     let lang = normalizeLanguageCode(langCode);
     let target = path.join(this.cacheDir, `${lang}.bdic`);
@@ -98,9 +97,21 @@ module.exports = class DictionarySync {
       }
     }
 
-    let url = getURLForHunspellDictionary(lang);
+    const url = getURLForHunspellDictionary(lang);
+    const request = new Request(url, {
+      headers: new Headers({'Content-Type': 'application/octet-stream'})
+    })
     d(`Actually downloading ${url}`);
-    await downloadFileOrUrl(url, target);
+    const response = await fetch(request);
+    if (!response.ok) {
+      throw Error(`Unable to download, server returned ${response.status} ${response.statusText}`);
+    }
+    const body = await response.arrayBuffer();
+    if (body == null) {
+      throw Error('No response body');
+    }
+    const buffer = Buffer.from(new Uint8Array(body));
+    await fs.writeFile(target, buffer);
 
     if (cacheOnly) return target;
 

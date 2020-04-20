@@ -1,5 +1,4 @@
 const {spawn} = require('spawn-rx');
-const {requireTaskPool} = require('@aabuhijleh/electron-remote');
 const LRU = require('lru-cache');
 
 const {Subscription} = require('rxjs/Subscription');
@@ -37,7 +36,7 @@ let Spellchecker;
 
 let d = require('debug')('electron-spellchecker:spell-check-handler');
 
-const cld = requireTaskPool(require.resolve('./cld2'));
+const cld = require('./cld2');
 let fallbackLocaleTable = null;
 let webFrame = (process.type === 'renderer' ?
   require('electron').webFrame :
@@ -593,7 +592,7 @@ module.exports = class SpellCheckHandler {
   async getCorrectionsForMisspelling(text) {
     // NB: This is async even though we don't use await, to make it easy for
     // ContextMenuBuilder to use this method even when it's hosted in another
-    // renderer process via electron-remote.
+    // renderer process.
     if (!this.currentSpellchecker) {
       return null;
     }
