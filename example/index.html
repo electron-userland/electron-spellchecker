@@ -27,26 +27,30 @@
       <img height="33%"
       src="http://pixel.nymag.com/imgs/daily/following/2016/05/12/12376681_1063072477089016_3145722177588178860_n.nocrop.w536.h2147483647.2x.jpg" />
     </div>
-  </div>
-  
-  <script>
-  import SpellCheckHandler from '../src/spell-check-handler';
-  import ContextMenuListener from '../src/context-menu-listener';
-  import ContextMenuBuilder from '../src/context-menu-builder';
-  
-  window.spellCheckHandler = new SpellCheckHandler();
-  window.spellCheckHandler.attachToInput();
-  window.spellCheckHandler.currentSpellcheckerChanged.subscribe(() => {
-    document.getElementById('detectedLang').innerText = `Current language is ${window.spellCheckHandler.currentSpellcheckerLanguage}`;
-  });
-  
-  window.spellCheckHandler.provideHintText('This is probably the language that you want to check in');
-  window.spellCheckHandler.autoUnloadDictionariesOnBlur();
-  
-  let contextMenuBuilder = new ContextMenuBuilder(window.spellCheckHandler);
-  let contextMenuListener = new ContextMenuListener(async (info) => {
-    await contextMenuBuilder.showPopupMenu(info);
-  });
-  </script>
-</body>
+
+    <script>
+      const {remote} = require('electron')
+      const SpellCheckHandler = require("../src/spell-check-handler");
+      const ContextMenuBuilder = require("../src/context-menu-builder");
+
+      window.spellCheckHandler = new SpellCheckHandler();
+      window.spellCheckHandler.attachToInput();
+      window.spellCheckHandler.currentSpellcheckerChanged.subscribe(() => {
+        document.getElementById(
+          "detectedLang"
+        ).innerText = `Current language is ${window.spellCheckHandler.currentSpellcheckerLanguage}`;
+      });
+
+      window.spellCheckHandler.provideHintText(
+        "This is probably the language that you want to check in"
+      );
+      window.spellCheckHandler.autoUnloadDictionariesOnBlur();
+
+      let contextMenuBuilder = new ContextMenuBuilder(window.spellCheckHandler);
+
+      remote.getCurrentWebContents().addEventListener('context-menu', async (event, info) => {
+        await contextMenuBuilder.showPopupMenu(info);
+      });
+    </script>
+  </body>
 </html>
