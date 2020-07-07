@@ -50,7 +50,7 @@
     "cross-env": "^5.2.0",
     "electron-debug": "^2.1.0",
     "electron-mocha": "^6.0.4",
-    "electron": "4.0.6",
+    "electron": "7.2.4",
     "esdoc": "^1.1.0",
     "esdoc-es7-plugin": "0.0.3",
     "esdoc-plugin-async-to-sync": "^0.5.0",
