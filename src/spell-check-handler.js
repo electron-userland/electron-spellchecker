@@ -463,7 +463,7 @@ module.exports = class SpellCheckHandler {
    *  @param {*} webFrame
    */
   setSpellCheckProvider(webFrame) {
-    if (process.versions.electron >= '5.0.0') {
+    if (process.versions.electron >= '5.0.0' || process.versions.electron >= '10.0.0') {
       webFrame.setSpellCheckProvider(
         this.currentSpellcheckerLanguage,
         { spellCheck: this.handleElectronSpellCheck.bind(this) });
