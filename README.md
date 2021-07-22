@@ -10,7 +10,7 @@ electron-spellchecker:
 * Automatically detects the language the user is typing in and silently switches on the fly.
 * Handles locale correctly and automatically (i.e. users who are from Australia should not be corrected for 'colour', but US English speakers should)
 * Automatically downloads and manages dictionaries in the background.
-* Checks very quickly, doesn't introduce input lag which is extremely noticable
+* Checks very quickly, doesn't introduce input lag which is extremely noticeable
 * Only loads one Dictionary at a time which saves a significant amount of memory
 
 ## Quick Start
